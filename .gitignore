@@ -1,1 +1,12 @@
+.vscode/
 build/
+logs/
+logs1/
+.idea/
+cmake-build-debug/
+*.log
+logs2/consum1_2.log
+logs2/consum1_other.log
+logs2/consum1.log
+logs2/result.png
+logs2/result.txt

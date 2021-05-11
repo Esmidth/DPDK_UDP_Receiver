@@ -16,6 +16,7 @@
 #include <iostream>
 
 #include <netinet/ip.h>
+#include <thread>
 
 #define RX_RING_SIZE 1024
 #define TX_RING_SIZE 1024
@@ -25,6 +26,62 @@
 #define NUM_MBUFS 8191
 #define MBUF_CACHE_SIZE 250
 #define BURST_SIZE 32
+
+#define LINKED_NODE_NUM 10000000 // 1000k
+
+#define NOZOMI // recv thread
+#define DOB	   // assemble thread / consume thread
+#define GODOT  // align thread
+#define KAZE   // send thread
+
+#define SEND // send to MQ
+#define SEND_BATCH
+// #define SEND_COMPRESS // enable compression
+
+#define DEBUG_DISPLAY
+#define DEBUG // print debug info
+// #define QUEUE // using QUEUE version
+#define RING // using RING version
+// #define LOG // create log file
+#define DROP // drop frame
+// #define FAKE_DATA // use fake data to overwrite true loads
+
+std::atomic<unsigned int> sent_frames(0);
+std::atomic<unsigned int> forward_packet(0);
+//
+std::atomic<unsigned int> align_num(0);
+std::atomic<bool> align_init(false);
+std::atomic<bool> assem_init(false);
+std::atomic<unsigned int> global_count(0);
+std::atomic<bool> timer_init(false);
+std::atomic<bool> send_thread_init(false);
+
+std::atomic<unsigned int> drop_count(0);
+std::atomic<unsigned int> mis(0);
+std::atomic<unsigned int> mis_msg(0);
+
+std::atomic<double> sec(0);
+
+#ifdef RING
+struct rte_mempool *send_pool;
+struct rte_ring *send_ring, *recv_ring;
+std::string PRI_2_SEC;
+std::string _MSG_POOL;
+
+const unsigned flags = 0;
+const unsigned ring_size = 1048576 * 2;
+const unsigned pool_size = 1048576 * 2;
+const unsigned pool_cache = 320;
+const unsigned priv_data_sz = 0;
+#define STR_TOKEN_SIZE 1472
+#endif
+
+#define TIME_STAMP 0.001 // sec
+
+double last_sec = 0;
+int first_time = true;
+
+std::string log_dir = "logs1/";
 
 static uint32_t l2fwd_enabled_port_mask = 0;
 static uint16_t nb_port_pair_params;
@@ -292,6 +349,35 @@ static int check_port_pair_config(void)
 	return 0;
 }
 
+void timer_thread(Thread_arg *arg)
+{
+	int sec = 0;
+
+	while (1)
+	{
+		printf("sec:%d\n", sec);
+		std::this_thread::sleep_for(std::chrono::seconds(1));
+		sec++;
+	}
+}
+
+void consumer_thread(Thread_arg *arg)
+{
+	udpFramesIndex65536_1460 *pUDPFrameIndex;
+	udpFramesPool_1460 *pUDPFramePool;
+	int offset;
+	unsigned char tmp[1472];
+	udpPacket_1460 *packet_ptr = nullptr;
+	pUDPFrameIndex = arg->local_UDPFrameIndex;
+	pUDPFramePool = arg->local_UDPFramePool;
+	Thread_arg *sub = (Thread_arg *)arg;
+
+	unsigned short last_frameSeq = 0;
+
+	unsigned short frameSeq = 0;
+	unsigned short packetSeq = 0;
+}
+
 /*
  * The main function, which does initialization and calls the per-lcore
  * functions.
@@ -299,6 +385,15 @@ static int check_port_pair_config(void)
 int main(int argc, char *argv[])
 {
 	std::cout << "HELLO WORLD FROM CPP" << std::endl;
+
+	Thread_arg arg;
+
+	std::thread t1(timer_thread, &arg);
+	cpu_set_t mask;
+	CPU_ZERO(&mask);
+	CPU_SET(4, &mask);
+	pthread_setaffinity_np(t1.native_handle(), sizeof(cpu_set_t), &mask);
+
 	struct rte_mempool *mbuf_pool;
 	unsigned nb_ports;
 	uint16_t portid;
@@ -346,8 +441,8 @@ int main(int argc, char *argv[])
 		rte_exit(EXIT_FAILURE, "Cannot init port %" PRIu16 "\n",
 				 portid);
 
-	if (rte_lcore_count() > 1)
-		printf("\nWARNING: Too many lcores enabled. Only 1 used.\n");
+	// if (rte_lcore_count() > 1)
+	// printf("\nWARNING: Too many lcores enabled. Only 1 used.\n");
 
 	/* Call lcore_main on the main core only. */
 	// lcore_main();
