@@ -26,8 +26,6 @@
 #define MBUF_CACHE_SIZE 250
 #define BURST_SIZE 32
 
-
-
 static uint32_t l2fwd_enabled_port_mask = 0;
 static uint16_t nb_port_pair_params;
 
@@ -172,10 +170,12 @@ void print_pkt(struct rte_mbuf *buf)
  * The lcore main. This is the main thread that does the work, reading from
  * an input port and writing to an output port.
  */
-static __rte_noreturn void
-lcore_main(void)
+static __rte_noreturn int
+lcore_main(void *arg)
 {
 	uint16_t port;
+
+	int pp = *(int *)arg;
 
 	/*
 	 * Check that the port is on the same NUMA node as the polling thread
@@ -201,51 +201,52 @@ lcore_main(void)
 		 * Receive packets on a port and forward them on the paired
 		 * port. The mapping is 0 -> 1, 1 -> 0, 2 -> 3, 3 -> 2, etc.
 		 */
-		RTE_ETH_FOREACH_DEV(port)
+		// RTE_ETH_FOREACH_DEV(port)
+		// {
+		port = pp;
+
+		/* Get burst of RX packets, from first port of pair. */
+		struct rte_mbuf *bufs[BURST_SIZE];
+		const uint16_t nb_rx = rte_eth_rx_burst(port, 0,
+												bufs, BURST_SIZE);
+
+		if (unlikely(nb_rx == 0))
+			continue;
+		// printf("nb_rx:%d\n", nb_rx);
+		// for(int i = 0;i<nb_rx;i++)
+		// {
+		// 	printf("Preamble :%x %x %x %x %x %x %x\nSFD:%x\n",bufs[i][0],bufs[i][1],bufs[i][2],bufs[i][3],bufs[i][4],bufs[i][5],bufs[i][6],bufs[i][7]);
+		// }
+		// struct ip* ip_packet;
+		udpPacket_1460 *tmp_packet_ptr;
+		for (int i = 0; i < nb_rx; i++)
 		{
-
-			/* Get burst of RX packets, from first port of pair. */
-			struct rte_mbuf *bufs[BURST_SIZE];
-			const uint16_t nb_rx = rte_eth_rx_burst(port, 0,
-													bufs, BURST_SIZE);
-
-			if (unlikely(nb_rx == 0))
-				continue;
-			// printf("nb_rx:%d\n", nb_rx);
-			// for(int i = 0;i<nb_rx;i++)
-			// {
-			// 	printf("Preamble :%x %x %x %x %x %x %x\nSFD:%x\n",bufs[i][0],bufs[i][1],bufs[i][2],bufs[i][3],bufs[i][4],bufs[i][5],bufs[i][6],bufs[i][7]);
-			// }
-			// struct ip* ip_packet;
-			udpPacket_1460 *tmp_packet_ptr;
-			for (int i = 0; i < nb_rx; i++)
+			if (bufs[i]->pkt_len == 1514)
+			// if(true)
 			{
-				if (bufs[i]->pkt_len == 1514)
-				// if(true)
-				{
-					// printf("pkt_len:%hu data_len:%d buf_len:%d data_off:%d\n", bufs[i]->pkt_len, bufs[i]->data_len, bufs[i]->buf_len, bufs[i]->data_off);
-					//printf("%x %x %x %x %x %x %x\n", *(char*)(bufs[i]->buf_addr + bufs[i]->data_off), 0, 0, 0, 0, 0, 0);
-					tmp_packet_ptr = (udpPacket_1460 *)(bufs[i]->buf_addr + bufs[i]->data_off + 42);
-					printf("frameSeq:%d, packetSeq:%d, packetLen:%d\n", tmp_packet_ptr->frameSeq, tmp_packet_ptr->packetSeq, tmp_packet_ptr->packetLen);
-					// print_pkt(bufs[i]);
-					count[port] += 1;
-					printf("count:%d port_id:%d\n----------\n", count[port], port);
-				}
-			}
-
-			/* Send burst of TX packets, to second port of pair. */
-			// const uint16_t nb_tx = rte_eth_tx_burst(port ^ 1, 0,
-			// 		bufs, nb_rx);
-			const uint16_t nb_tx = 0;
-
-			/* Free any unsent packets. */
-			if (unlikely(nb_tx < nb_rx))
-			{
-				uint16_t buf;
-				for (buf = nb_tx; buf < nb_rx; buf++)
-					rte_pktmbuf_free(bufs[buf]);
+				// printf("pkt_len:%hu data_len:%d buf_len:%d data_off:%d\n", bufs[i]->pkt_len, bufs[i]->data_len, bufs[i]->buf_len, bufs[i]->data_off);
+				//printf("%x %x %x %x %x %x %x\n", *(char*)(bufs[i]->buf_addr + bufs[i]->data_off), 0, 0, 0, 0, 0, 0);
+				tmp_packet_ptr = (udpPacket_1460 *)(bufs[i]->buf_addr + bufs[i]->data_off + 42);
+				printf("frameSeq:%d, packetSeq:%d, packetLen:%d\n", tmp_packet_ptr->frameSeq, tmp_packet_ptr->packetSeq, tmp_packet_ptr->packetLen);
+				// print_pkt(bufs[i]);
+				count[port] += 1;
 			}
 		}
+		printf("count:%d port_id:%d\n----------\n", count[port], port);
+
+		/* Send burst of TX packets, to second port of pair. */
+		// const uint16_t nb_tx = rte_eth_tx_burst(port ^ 1, 0,
+		// 		bufs, nb_rx);
+		const uint16_t nb_tx = 0;
+
+		/* Free any unsent packets. */
+		if (unlikely(nb_tx < nb_rx))
+		{
+			uint16_t buf;
+			for (buf = nb_tx; buf < nb_rx; buf++)
+				rte_pktmbuf_free(bufs[buf]);
+		}
+		// }
 	}
 }
 
@@ -324,14 +325,14 @@ int main(int argc, char *argv[])
 
 	/* Creates a new mempool in memory to hold the mbufs. */
 
-	unsigned int nb_lcores = nb_ports;
+	unsigned int nb_lcores = rte_lcore_count();
 
 	unsigned int nb_mbufs;
 	nb_mbufs = RTE_MAX(nb_ports * (nb_rxd + nb_txd + MAX_PKT_BURST +
 								   nb_lcores * MEMPOOL_CACHE_SIZE),
 					   8192U);
 
-	printf("nb_port:%d, nb_mbufs:%d, nb_lcores:%d\n",nb_ports,nb_mbufs,nb_lcores);
+	printf("nb_port:%d, nb_mbufs:%d, nb_lcores:%d\n", nb_ports, nb_mbufs, nb_lcores);
 	mbuf_pool = rte_pktmbuf_pool_create("MBUF_POOL", NUM_MBUFS * nb_ports,
 										MBUF_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
 	printf("RTE_MBUF_DEFAULT_BUF_SIZE:%d\n", RTE_MBUF_DEFAULT_BUF_SIZE);
@@ -349,7 +350,23 @@ int main(int argc, char *argv[])
 		printf("\nWARNING: Too many lcores enabled. Only 1 used.\n");
 
 	/* Call lcore_main on the main core only. */
-	lcore_main();
+	// lcore_main();
+
+	unsigned lcore_id;
+
+	int ports[2] = {0, 1};
+	int i = 0;
+
+	RTE_LCORE_FOREACH_WORKER(lcore_id)
+	{
+		rte_eal_remote_launch(lcore_main, &ports[i], lcore_id);
+		i++;
+	}
+
+	RTE_LCORE_FOREACH_WORKER(lcore_id)
+	{
+		rte_eal_wait_lcore(lcore_id);
+	}
 
 	return 0;
 }
