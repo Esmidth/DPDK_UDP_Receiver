@@ -1,20 +1,29 @@
 #include "common.h"
 
-#define PACK_NUM 44
+#define PACK_NUM 23
 #define DATA_LENGTH 1464
-// When it runs in VM, turn the POOL_SIZE down
-#define POOL_SIZE 50000
 #define INDEX_SIZE 68000
-
 #define MESSAGE_LENGTH 64040
 #define P_BATCH_SEND_NUM 4
 
-#define MAX_EVENTS 10
+#define VM
 
-// #define CACHE_SIZE 67108864
-//#define CACHE_SIZE 134217722*16
+#ifdef VM
+
+#define POOL_SIZE 100
 #define CACHE_SIZE 134217722
 #define CACHE_NUM 70000
+
+#endif
+
+#ifndef VM
+
+#define POOL_SIZE 50000
+#define CACHE_SIZE 134217722
+#define CACHE_NUM 70000
+
+
+#endif
 // constexpr CACHE_SIZE 70*1024*1024*1024
 
 #define NUM_THREADS 1
@@ -136,9 +145,9 @@ struct Thread_arg
     udpFramesPool_1460 *local_UDPFramePool;
     // std::queue<int> frame_queue;
     // std::queue<int> queue_to_send;
-    // moodycamel::ConcurrentQueue<int> mem_queue;
-    // moodycamel::ConcurrentQueue<int> frame_queue;
-    // moodycamel::ConcurrentQueue<int> queue_to_send;
+    moodycamel::ConcurrentQueue<int> mem_queue;
+    moodycamel::ConcurrentQueue<int> frame_queue;
+    moodycamel::ConcurrentQueue<int> queue_to_send;
 
     //FILE POINTER
     std::shared_ptr<spdlog::logger> async_log1;

@@ -48,10 +48,10 @@
 // #include "ff_epoll.h"
 
 // #include "threadsafe_queue.h"
-// #include "concurrentqueue.h"
+#include "concurrentqueue.h"
 
-// #include <zmq.hpp>
-// #include <fmt/core.h>
+#include <zmq.hpp>
+#include <fmt/core.h>
 
 
 #include <rte_malloc.h>
