@@ -219,7 +219,7 @@ void print_pkt(struct rte_mbuf *buf)
 				printf("\t|\t");
 			}
 		}
-		printf("%x ", *(uint8_t *)(buf->buf_addr + buf->data_off + j));
+		printf("%x ", *(uint8_t *)((uint8_t*)buf->buf_addr + buf->data_off + j));
 	}
 	printf("\n");
 	// ip = (struct iphdr *)(bufs[i]->buf_addr + bufs[i]->data_off + 14);
@@ -229,7 +229,7 @@ void print_pkt(struct rte_mbuf *buf)
 	// printf("udp:\nsourec: %hu, dest:%hu, len:%hu, check:%hu\n", udp_header->source, udp_header->dest, udp_header->len, udp_header->check);
 	// printf("udp_len_hex:%x %x\n", *(uint8_t *)(bufs[i]->buf_addr + bufs[i]->data_off + 38), *(uint8_t *)(bufs[i]->buf_addr + bufs[i]->data_off + 39));
 	uint16_t tmp_len;
-	tmp_len = (*(uint8_t *)(buf->buf_addr + buf->data_off + 38) << 8) | (*(uint8_t *)(buf->buf_addr + buf->data_off + 39));
+	tmp_len = (*(uint8_t *)((uint8_t*)buf->buf_addr + buf->data_off + 38) << 8) | (*(uint8_t *)((uint8_t*)buf->buf_addr + buf->data_off + 39));
 	// printf("udp_len:%d\n", *(uint16_t *)(bufs[i]->buf_addr + bufs[i]->data_off + 38));
 	printf("udp_len_new:%d\n", tmp_len);
 	printf("------------------\n");
@@ -301,7 +301,7 @@ lcore_main(void *arg)
 				}
 				// printf("pkt_len:%hu data_len:%d buf_len:%d data_off:%d\n", bufs[i]->pkt_len, bufs[i]->data_len, bufs[i]->buf_len, bufs[i]->data_off);
 				//printf("%x %x %x %x %x %x %x\n", *(char*)(bufs[i]->buf_addr + bufs[i]->data_off), 0, 0, 0, 0, 0, 0);
-				tmp_packet_ptr = (udpPacket_1460 *)(bufs[i]->buf_addr + bufs[i]->data_off + 42);
+				tmp_packet_ptr = (udpPacket_1460 *)((char*)bufs[i]->buf_addr + bufs[i]->data_off + 42);
 				rte_memcpy(msg, tmp_packet_ptr, 1472);
 				if (rte_ring_enqueue(send_ring, msg) < 0)
 				{
@@ -372,16 +372,16 @@ static int check_port_pair_config(void)
 	return 0;
 }
 
-void consumer_thread(Thread_arg *arg)
+void consumer_thread(Thread_arg *sub)
 {
 	udpFramesIndex65536_1460 *pUDPFrameIndex;
 	udpFramesPool_1460 *pUDPFramePool;
-	int offset;
+	// int offset;
 	unsigned char tmp[1472];
 	udpPacket_1460 *packet_ptr = nullptr;
-	pUDPFrameIndex = arg->local_UDPFrameIndex;
-	pUDPFramePool = arg->local_UDPFramePool;
-	Thread_arg *sub = (Thread_arg *)arg;
+	pUDPFrameIndex = sub->local_UDPFrameIndex;
+	pUDPFramePool = sub->local_UDPFramePool;
+	// Thread_arg *sub = (Thread_arg *)arg;
 
 	unsigned short last_frameSeq = 0;
 
@@ -508,7 +508,7 @@ void consumer_thread(Thread_arg *arg)
 					memcpy(tmp, tmpp, 1472);
 					rte_mempool_put(send_pool, tmpp);
 					packet_ptr = (udpPacket_1460 *)tmp;
-					spdlog::info("{},packetSeq:{}",packet_ptr->frameSeq,packet_ptr->packetSeq);
+					// spdlog::info("{},packetSeq:{}",packet_ptr->frameSeq,packet_ptr->packetSeq);
 #endif
 
 #ifndef RING
@@ -636,7 +636,7 @@ void consumer_thread(Thread_arg *arg)
 						}
 						pUDPFrameIndex->pUDPFrame[frameSeq]->packetNum = PACK_NUM;
 						// pUDPFrameIndex->pUDPFrame[frameSeq]->packetNum = packet_ptr->packetNum;
-						arg->frame_queue.enqueue(frameSeq);
+						sub->frame_queue.enqueue(frameSeq);
 					}
 					else
 					{

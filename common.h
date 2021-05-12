@@ -153,42 +153,42 @@ extern "C"
     //            8 * bytes * 1.0 / ((after->tv_sec - before->tv_sec) * 1000000 + after->tv_usec - before->tv_usec), bytes, bytes * 8, npkg);
     // }
 
-    static void setaffinity(long int ncpu)
-    {
-        // long int ncpu = sysconf(_SC_NPROCESSORS_ONLN);
+    // static void setaffinity(long int ncpu)
+    // {
+    //     // long int ncpu = sysconf(_SC_NPROCESSORS_ONLN);
 
-        cpu_set_t cpuset;
+    //     cpu_set_t cpuset;
 
-        CPU_ZERO(&cpuset);
+    //     CPU_ZERO(&cpuset);
 
-        CPU_SET(ncpu > 1 ? ncpu - 1 : 1, &cpuset);
+    //     CPU_SET(ncpu > 1 ? ncpu - 1 : 1, &cpuset);
 
-        int ret = sched_setaffinity(getpid(), sizeof(cpuset), &cpuset);
+    //     int ret = sched_setaffinity(getpid(), sizeof(cpuset), &cpuset);
 
-        // log_warn("setaffinity ret = %d\n", ret);
-        spdlog::warn("setaffinity ret = {}", ret);
+    //     // log_warn("setaffinity ret = %d\n", ret);
+    //     spdlog::warn("setaffinity ret = {}", ret);
 
-        int j;
-        for (j = 0; j < CPU_SETSIZE; j++)
-        {
-            if (CPU_ISSET(j, &cpuset))
-            {
-                printf("CPU_SETSIZE = %d, j = %d, cpuset = %d\n", CPU_SETSIZE, j, cpuset);
-                CPU_CLR(j, &cpuset);
-                printf("CPU_SETSIZE = %d, j = %d, cpuset = %d\n", CPU_SETSIZE, j, cpuset);
-            }
-        }
+    //     int j;
+    //     for (j = 0; j < CPU_SETSIZE; j++)
+    //     {
+    //         if (CPU_ISSET(j, &cpuset))
+    //         {
+    //             printf("CPU_SETSIZE = %d, j = %d, cpuset = %d\n", CPU_SETSIZE, j, cpuset);
+    //             CPU_CLR(j, &cpuset);
+    //             printf("CPU_SETSIZE = %d, j = %d, cpuset = %d\n", CPU_SETSIZE, j, cpuset);
+    //         }
+    //     }
 
-        ret = sched_getaffinity(getpid(), sizeof(cpuset), &cpuset);
+    //     ret = sched_getaffinity(getpid(), sizeof(cpuset), &cpuset);
 
-        for (j = 0; j < CPU_SETSIZE; j++)
-        {
-            if (CPU_ISSET(j, &cpuset))
-            {
-                printf("CPU_SETSIZE = %d, j = %d, cpuset = %d\n", CPU_SETSIZE, j, cpuset);
-            }
-        }
-    }
+    //     for (j = 0; j < CPU_SETSIZE; j++)
+    //     {
+    //         if (CPU_ISSET(j, &cpuset))
+    //         {
+    //             printf("CPU_SETSIZE = %d, j = %d, cpuset = %d\n", CPU_SETSIZE, j, cpuset);
+    //         }
+    //     }
+    // }
 }
 
 #endif /*__COMMON_H*/
