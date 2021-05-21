@@ -115,12 +115,7 @@ static const struct rte_eth_conf port_conf_default = {
 		.max_rx_pkt_len = RTE_ETHER_MAX_LEN,
 	},
 };
-/* basicfwd.c: Basic DPDK skeleton forwarding example. */
 
-/*
- * Initializes a given port using global settings and with the RX buffers
- * coming from the mbuf_pool passed as a parameter.
- */
 static inline int
 port_init(uint16_t port, struct rte_mempool *mbuf_pool)
 {
@@ -219,7 +214,7 @@ void print_pkt(struct rte_mbuf *buf)
 				printf("\t|\t");
 			}
 		}
-		printf("%x ", *(uint8_t *)((uint8_t*)buf->buf_addr + buf->data_off + j));
+		printf("%x ", *(uint8_t *)((uint8_t *)buf->buf_addr + buf->data_off + 42 + j));
 	}
 	printf("\n");
 	// ip = (struct iphdr *)(bufs[i]->buf_addr + bufs[i]->data_off + 14);
@@ -229,7 +224,7 @@ void print_pkt(struct rte_mbuf *buf)
 	// printf("udp:\nsourec: %hu, dest:%hu, len:%hu, check:%hu\n", udp_header->source, udp_header->dest, udp_header->len, udp_header->check);
 	// printf("udp_len_hex:%x %x\n", *(uint8_t *)(bufs[i]->buf_addr + bufs[i]->data_off + 38), *(uint8_t *)(bufs[i]->buf_addr + bufs[i]->data_off + 39));
 	uint16_t tmp_len;
-	tmp_len = (*(uint8_t *)((uint8_t*)buf->buf_addr + buf->data_off + 38) << 8) | (*(uint8_t *)((uint8_t*)buf->buf_addr + buf->data_off + 39));
+	tmp_len = (*(uint8_t *)((uint8_t *)buf->buf_addr + buf->data_off + 38) << 8) | (*(uint8_t *)((uint8_t *)buf->buf_addr + buf->data_off + 39));
 	// printf("udp_len:%d\n", *(uint16_t *)(bufs[i]->buf_addr + bufs[i]->data_off + 38));
 	printf("udp_len_new:%d\n", tmp_len);
 	printf("------------------\n");
@@ -292,27 +287,32 @@ lcore_main(void *arg)
 
 		for (int i = 0; i < nb_rx; i++)
 		{
-			if (bufs[i]->pkt_len == 1514)
+			// if (bufs[i]->pkt_len == 1514)
 			// if(true)
+			// {
+			if (rte_mempool_get(send_pool, &msg) < 0)
 			{
-				if (rte_mempool_get(send_pool, &msg) < 0)
-				{
-					rte_panic("Fail to get message buffer\n");
-				}
-				// printf("pkt_len:%hu data_len:%d buf_len:%d data_off:%d\n", bufs[i]->pkt_len, bufs[i]->data_len, bufs[i]->buf_len, bufs[i]->data_off);
-				//printf("%x %x %x %x %x %x %x\n", *(char*)(bufs[i]->buf_addr + bufs[i]->data_off), 0, 0, 0, 0, 0, 0);
-				tmp_packet_ptr = (udpPacket_1460 *)((char*)bufs[i]->buf_addr + bufs[i]->data_off + 42);
-				rte_memcpy(msg, tmp_packet_ptr, 1472);
-				if (rte_ring_enqueue(send_ring, msg) < 0)
-				{
-					rte_panic("Fail to send message, message discard\n");
-				}
-				// printf("frameSeq:%d, packetSeq:%d, packetLen:%d\n", tmp_packet_ptr->frameSeq, tmp_packet_ptr->packetSeq, tmp_packet_ptr->packetLen);
-				// print_pkt(bufs[i]);
-				count[port] += 1;
+				rte_panic("Fail to get message buffer\n");
 			}
+			// printf("pkt_len:%hu data_len:%d buf_len:%d data_off:%d\n", bufs[i]->pkt_len, bufs[i]->data_len, bufs[i]->buf_len, bufs[i]->data_off);
+			//printf("%x %x %x %x %x %x %x\n", *(char*)(bufs[i]->buf_addr + bufs[i]->data_off), 0, 0, 0, 0, 0, 0);
+			tmp_packet_ptr = (udpPacket_1460 *)((char *)bufs[i]->buf_addr + bufs[i]->data_off + 42);
+			// for (int i = 0; i < 1472; i++)
+			// {
+			// 	printf("%x,", *((unsigned char *)bufs[i]->buf_addr + bufs[i]->data_off + 42 + i));
+			// }
+			// printf("\n");
+			rte_memcpy(msg, tmp_packet_ptr, 1472);
+			if (rte_ring_enqueue(send_ring, msg) < 0)
+			{
+				rte_panic("Fail to send message, message discard\n");
+			}
+			// printf("frameSeq:%d, packetSeq:%d, packetLen:%d\n", tmp_packet_ptr->frameSeq, tmp_packet_ptr->packetSeq, tmp_packet_ptr->packetLen);
+			// print_pkt(bufs[i]);
+			count[port] += 1;
+			// }
 		}
-		printf("count:%d port_id:%d\n----------\n", count[port], port);
+		// printf("count:%d port_id:%d\n----------\n", count[port], port);
 
 		/* Send burst of TX packets, to second port of pair. */
 		// const uint16_t nb_tx = rte_eth_tx_burst(port ^ 1, 0,
@@ -412,7 +412,7 @@ void consumer_thread(Thread_arg *sub)
 			continue;
 		}
 		packet_ptr = (udpPacket_1460 *)tmpp;
-		if (packet_ptr->packetSeq == PACK_NUM-1)
+		if (packet_ptr->packetSeq == PACK_NUM - 1)
 		{
 			rte_mempool_put(send_pool, tmpp);
 			break;
@@ -805,7 +805,7 @@ void send_to_pulsar(void *arg)
 	// producerconfiguration.setCompressionType(pulsar::CompressionZLib);
 	// Client *client = new Client("pulsar://192.168.20.32:6650,192.168.20.37:6650,192.168.20.36:6650");
 	// Client *client = new Client("pulsar://192.168.20.50:6650,192.168.20.50:6651");
-	Client* client = new Client("pulsar://localhost:6650");
+	Client *client = new Client("pulsar://localhost:6650");
 
 	//        clients[i] = new Client("pulsar://localhost:6650");
 	// std::string topic_name = "LD_" + std::to_string(thread_id);
@@ -1072,7 +1072,7 @@ int main(int argc, char *argv[])
 	args.offset = 0;
 	args.pulsar_topic_name = "persistent://public/my-namespace/test-topic1";
 	printf("topic:%s\n", args.pulsar_topic_name.c_str());
-	args.channel_id = 0 * 2;
+	args.channel_id = 10 * 2;
 	args.proc_id = args.channel_id;
 	printf("\n--------%d\n\n", args.channel_id);
 
@@ -1135,7 +1135,7 @@ int main(int argc, char *argv[])
 #ifdef DOB
 	assemble_threads.emplace_back(consumer_thread, &args);
 	CPU_ZERO(&mask);
-	CPU_SET(args.channel_id + 5, &mask);
+	CPU_SET(args.channel_id + 1 + 40, &mask);
 	pthread_setaffinity_np(assemble_threads[0].native_handle(), sizeof(cpu_set_t), &mask);
 #endif
 
@@ -1209,8 +1209,6 @@ int main(int argc, char *argv[])
 	int ports[2] = {0, 1};
 	int i = 0;
 
-	
-
 	RTE_LCORE_FOREACH_WORKER(lcore_id)
 	{
 		rte_eal_remote_launch(lcore_main, &ports[i], lcore_id);
@@ -1218,6 +1216,8 @@ int main(int argc, char *argv[])
 	}
 
 	timer_init = true;
+
+	
 
 	RTE_LCORE_FOREACH_WORKER(lcore_id)
 	{

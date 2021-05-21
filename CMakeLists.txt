@@ -34,7 +34,7 @@ target_link_libraries(server_cmake cppzmq)
 target_link_libraries(server_cmake fmt::fmt)
 target_link_libraries(server_cmake ${xxx_libraries})
 target_link_libraries(server_cmake ${DPDK_LIBS})
-target_link_libraries(server_cmake pthread dl rt numa crypto pcap)
+target_link_libraries(server_cmake pthread dl rt numa crypto)
 target_link_libraries(server_cmake spdlog::spdlog)
 target_link_libraries(server_cmake /usr/lib/libpulsar.so /usr/lib/libpulsarnossl.so)
 

@@ -1,6 +1,6 @@
 #include "common.h"
 
-#define PACK_NUM 23
+#define PACK_NUM 44
 #define DATA_LENGTH 1464
 #define INDEX_SIZE 68000
 #define MESSAGE_LENGTH 64040
@@ -32,32 +32,32 @@
 
 typedef unsigned char byte;
 
-class udpPacket_1460
-{
-public:
-    unsigned short frameSeq;
-    unsigned short packetSeq;
-    unsigned short packetLen;
-    unsigned short reserver;
-    unsigned char data[1460];
-    unsigned char checksum[4];
-};
+// class udpPacket_1460
+// {
+// public:
+//     unsigned short frameSeq;
+//     unsigned short packetSeq;
+//     unsigned short packetLen;
+//     unsigned short reserver;
+//     unsigned char data[1460];
+//     unsigned char checksum[4];
+// };
 
 // class udpPacket_1460{
 //     public:
 //     unsigned char data[1472];
 // };
 
-// class udpPacket_1460
-// {
-// public:
-//     unsigned short nodeNum;   // 节点编号
-//     unsigned short frameSeq;  // 数据帧编号
-//     unsigned char packetNum;  // 分包总数
-//     unsigned char packetSeq;  // 分包编号
-//     unsigned short packetLen; // 数据包长度
-//     unsigned char data[1464]; // 分包数据
-// };
+class udpPacket_1460
+{
+public:
+    unsigned short nodeNum;   // 节点编号
+    unsigned short frameSeq;  // 数据帧编号
+    unsigned char packetNum;  // 分包总数
+    unsigned char packetSeq;  // 分包编号
+    unsigned short packetLen; // 数据包长度
+    unsigned char data[1464]; // 分包数据
+};
 
 // class udpPacket_1460
 // {
