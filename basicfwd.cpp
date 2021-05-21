@@ -3,49 +3,6 @@
  */
 
 #include "Data_Struct.h"
-#include <stdint.h>
-#include <inttypes.h>
-#include <rte_eal.h>
-#include <rte_ethdev.h>
-#include <rte_cycles.h>
-#include <rte_lcore.h>
-#include <rte_mbuf.h>
-#include <sys/socket.h>
-#include <netinet/udp.h>
-
-#include <iostream>
-
-#include <netinet/ip.h>
-#include <thread>
-
-#define RX_RING_SIZE 1024
-#define TX_RING_SIZE 1024
-#define MAX_PKT_BURST 32
-#define MEMPOOL_CACHE_SIZE 256
-
-#define NUM_MBUFS 8191
-#define MBUF_CACHE_SIZE 250
-#define BURST_SIZE 32
-
-#define LINKED_NODE_NUM 10000000 // 1000k
-
-#define NOZOMI // recv thread
-#define DOB	   // assemble thread / consume thread
-#define GODOT  // align thread
-#define KAZE   // send thread
-
-// #define SEND // send to MQ
-#define SEND_BATCH
-// #define SEND_COMPRESS // enable compression
-
-// #define GRAFANA
-#define DEBUG_DISPLAY
-#define DEBUG // print debug info
-// #define QUEUE // using QUEUE version
-#define RING // using RING version
-// #define LOG // create log file
-// #define DROP // drop frame
-// #define FAKE_DATA // use fake data to overwrite true loads
 
 std::atomic<unsigned int> sent_frames(0);
 std::atomic<unsigned int> forward_packet(0);
@@ -64,10 +21,10 @@ std::atomic<unsigned int> mis_msg(0);
 std::atomic<double> sec(0);
 
 #ifdef RING
-struct rte_mempool *send_pool;
-struct rte_ring *send_ring, *recv_ring;
-std::string PRI_2_SEC;
-std::string _MSG_POOL;
+// struct rte_mempool *send_pool;
+// struct rte_ring *send_ring, *recv_ring;
+// std::string PRI_2_SEC;
+// std::string _MSG_POOL;
 
 #ifndef VM
 const unsigned flags = 0;
@@ -239,7 +196,8 @@ lcore_main(void *arg)
 {
 	uint16_t port;
 
-	int pp = *(int *)arg;
+	// int pp = *(int *)arg;
+	Thread_arg *sub = (Thread_arg *)arg;
 
 	/*
 	 * Check that the port is on the same NUMA node as the polling thread
@@ -269,7 +227,7 @@ lcore_main(void *arg)
 		 */
 		// RTE_ETH_FOREACH_DEV(port)
 		// {
-		port = pp;
+		port = sub->proc_id;
 
 		/* Get burst of RX packets, from first port of pair. */
 		struct rte_mbuf *bufs[BURST_SIZE];
@@ -290,7 +248,7 @@ lcore_main(void *arg)
 			// if (bufs[i]->pkt_len == 1514)
 			// if(true)
 			// {
-			if (rte_mempool_get(send_pool, &msg) < 0)
+			if (rte_mempool_get(sub->send_pool, &msg) < 0)
 			{
 				rte_panic("Fail to get message buffer\n");
 			}
@@ -303,7 +261,7 @@ lcore_main(void *arg)
 			// }
 			// printf("\n");
 			rte_memcpy(msg, tmp_packet_ptr, 1472);
-			if (rte_ring_enqueue(send_ring, msg) < 0)
+			if (rte_ring_enqueue(sub->send_ring, msg) < 0)
 			{
 				rte_panic("Fail to send message, message discard\n");
 			}
@@ -392,33 +350,33 @@ void consumer_thread(Thread_arg *sub)
 
 #ifdef RING
 
-	recv_ring = rte_ring_lookup(PRI_2_SEC.c_str());
+	sub->recv_ring = rte_ring_lookup(sub->PRI_2_SEC.c_str());
 
 	while (!assem_init)
 	{
 		void *tmpp;
-		if (rte_ring_dequeue(recv_ring, &tmpp) < 0)
+		if (rte_ring_dequeue(sub->recv_ring, &tmpp) < 0)
 		{
 			continue;
 		}
-		rte_mempool_put(send_pool, tmpp);
+		rte_mempool_put(sub->send_pool, tmpp);
 	}
 	spdlog::info("BEFORE INIT");
 	while (true)
 	{
 		void *tmpp;
-		if (rte_ring_dequeue(recv_ring, &tmpp) < 0)
+		if (rte_ring_dequeue(sub->recv_ring, &tmpp) < 0)
 		{
 			continue;
 		}
 		packet_ptr = (udpPacket_1460 *)tmpp;
 		if (packet_ptr->packetSeq == PACK_NUM - 1)
 		{
-			rte_mempool_put(send_pool, tmpp);
+			rte_mempool_put(sub->send_pool, tmpp);
 			break;
 		}
 
-		rte_mempool_put(send_pool, tmpp);
+		rte_mempool_put(sub->send_pool, tmpp);
 	}
 	spdlog::warn("INIT DOB");
 
@@ -498,7 +456,7 @@ void consumer_thread(Thread_arg *sub)
 
 #ifdef RING
 					void *tmpp;
-					if (rte_ring_dequeue(recv_ring, &tmpp) < 0)
+					if (rte_ring_dequeue(sub->recv_ring, &tmpp) < 0)
 					{
 
 						// rte_panic("Fail to dequeue\n");
@@ -506,7 +464,7 @@ void consumer_thread(Thread_arg *sub)
 						continue;
 					}
 					memcpy(tmp, tmpp, 1472);
-					rte_mempool_put(send_pool, tmpp);
+					rte_mempool_put(sub->send_pool, tmpp);
 					packet_ptr = (udpPacket_1460 *)tmp;
 					// spdlog::info("{},packetSeq:{}",packet_ptr->frameSeq,packet_ptr->packetSeq);
 #endif
@@ -1054,6 +1012,7 @@ int main(int argc, char *argv[])
 	struct rte_mempool *mbuf_pool;
 	unsigned nb_ports;
 	uint16_t portid;
+	unsigned lcore_id;
 
 	/* Initialize the Environment Abstraction Layer (EAL). */
 	int ret = rte_eal_init(argc, argv);
@@ -1063,42 +1022,85 @@ int main(int argc, char *argv[])
 	argc -= ret;
 	argv += ret;
 
-	Thread_arg args;
+	// Thread_arg args;
+	std::vector<Thread_arg *> args_vec;
 	std::vector<std::thread> align_threads;
 	std::vector<std::thread> send_threads;
 	std::vector<std::thread> assemble_threads;
 
-	args.id = 1400;
-	args.offset = 0;
-	args.pulsar_topic_name = "persistent://public/my-namespace/test-topic1";
-	printf("topic:%s\n", args.pulsar_topic_name.c_str());
-	args.channel_id = 10 * 2;
-	args.proc_id = args.channel_id;
-	printf("\n--------%d\n\n", args.channel_id);
+	for (int i = 0; i < NUM_CHANNELS; i++)
+	{
+		args_vec.emplace_back(new Thread_arg());
+		args_vec[i]->id = 1400 + i;
+		args_vec[i]->pulsar_topic_name = "persistent://public/my-namespace/test-topic" + std::to_string(i);
+		// args_vec[i]->channel_id = (10 + i) * 2;
+		args_vec[i]->proc_id = i;
+	}
+
+	// for(int i = 0;i<NUM_CHANNELS;i++)
+	// {
+	// 	args_vec[i]->id = 1400+i;
+	// }
+
+	for (int i = 0; i < NUM_CHANNELS; i++)
+	{
+		printf("id:%d\n", args_vec[i]->id);
+		std::cout << args_vec[i]->pulsar_topic_name << std::endl;
+		std::cout << args_vec[i]->channel_id << std::endl;
+		std::cout << args_vec[i]->proc_id << std::endl;
+	}
+	std::cout << "______" << std::endl;
+
+	int i = 0;
+	RTE_LCORE_FOREACH_WORKER(lcore_id)
+	{
+		// std::cout << lcore_id <<" ," <<std::endl;
+		args_vec[i]->channel_id = lcore_id;
+		i++;
+	}
+
+	for (int i = 0; i < NUM_CHANNELS; i++)
+	{
+		printf("id:%d\n", args_vec[i]->id);
+		std::cout << "topic:" << args_vec[i]->pulsar_topic_name << std::endl;
+		std::cout << "channel_id:" << args_vec[i]->channel_id << std::endl;
+		std::cout << "proc_id:" << args_vec[i]->proc_id << std::endl;
+	}
+	return 0;
+
+	// args.id = 1400;
+	// args.offset = 0;
+	// args.pulsar_topic_name = "persistent://public/my-namespace/test-topic1";
+	// printf("topic:%s\n", args.pulsar_topic_name.c_str());
+	// args.channel_id = 10 * 2;
+	// args.proc_id = args.channel_id;
+	// printf("\n--------%d\n\n", args.channel_id);
 
 #ifndef QUEUE
 
 #ifdef RING
 
-	PRI_2_SEC = "PRI_2_SEC" + std::to_string(args.proc_id);
-	_MSG_POOL = "MSG_POOL" + std::to_string(args.proc_id);
-	spdlog::info("PRI_2_SEC: {}\tMSG_POOL: {}", PRI_2_SEC, _MSG_POOL);
+	for (int i = 0; i < NUM_CHANNELS; i++)
+	{
+		args_vec[i]->PRI_2_SEC = "PRI_2_SEC" + std::to_string(i);
+		args_vec[i]->_MSG_POOL = "MSG_POOL" + std::to_string(i);
+		spdlog::info("try to malloc ring:{}", i);
+		args_vec[i]->send_ring = rte_ring_create(args_vec[i]->PRI_2_SEC.c_str(), ring_size, rte_socket_id(), 0);
+		if (args_vec[i]->send_ring == nullptr)
+		{
+			spdlog::error("malloc ring failed");
+			return -1;
+		}
+		spdlog::info("try to malloc mempool:{}", i);
+		args_vec[i]->send_pool = rte_mempool_create(args_vec[i]->_MSG_POOL.c_str(), pool_size, STR_TOKEN_SIZE, pool_cache, priv_data_sz, NULL, NULL, NULL, NULL, rte_socket_id(), flags);
+		if (args_vec[i]->send_pool == nullptr)
+		{
+			spdlog::error("malloc mempool failed:{}", i);
+			return -1;
+		}
+		spdlog::info("done ring & mempool:{}", i);
+	}
 
-	spdlog::info("try to malloc ring");
-	send_ring = rte_ring_create(PRI_2_SEC.c_str(), ring_size, rte_socket_id(), 0);
-	if (send_ring == nullptr)
-	{
-		spdlog::error("malloc ring failed");
-		return -1;
-	}
-	spdlog::info("try to malloc mempool");
-	send_pool = rte_mempool_create(_MSG_POOL.c_str(), pool_size, STR_TOKEN_SIZE, pool_cache, priv_data_sz, NULL, NULL, NULL, NULL, rte_socket_id(), flags);
-	if (send_pool == nullptr)
-	{
-		spdlog::error("malloc mempool failed");
-		return -1;
-	}
-	spdlog::info("done ring & mempool");
 #endif
 
 #ifndef RING
@@ -1118,47 +1120,67 @@ int main(int argc, char *argv[])
 
 #endif
 
-	spdlog::info("START TO ALLOCATE POOL & INDEX");
-	args.local_UDPFramePool = new udpFramesPool_1460();
-	args.local_UDPFrameIndex = new udpFramesIndex65536_1460();
-	// memset(args.local_UDPFramePool,0,sizeof(udpFramesPool_1460));
-	// memset(args.local_UDPFrameIndex,0,sizeof(udpFramesIndex65536_1460));
-	spdlog::info("ALLOCATED POOL & INDEX");
+	for (int i = 0; i < NUM_CHANNELS; i++)
+	{
+
+		spdlog::info("START TO ALLOCATE POOL & INDEX:{}", i);
+		args_vec[i]->local_UDPFrameIndex = new udpFramesIndex65536_1460();
+		args_vec[i]->local_UDPFramePool = new udpFramesPool_1460();
+
+		// memset(args.local_UDPFramePool,0,sizeof(udpFramesPool_1460));
+		// memset(args.local_UDPFrameIndex,0,sizeof(udpFramesIndex65536_1460));
+		spdlog::info("ALLOCATED POOL & INDEX:{}", i);
+	}
 
 	// LOG FILE
-	args.async_log1 = spdlog::basic_logger_mt("basic_logger", log_dir + argv[argc - 1] + "_t2.log");
-	args.async_log2 = spdlog::basic_logger_mt("basic_logger1", log_dir + argv[argc - 1] + "_t3.log");
-	args.async_log3 = spdlog::basic_logger_mt("basic_logger3", log_dir + argv[argc - 1] + "_t4.log");
-	args.store_log = spdlog::basic_logger_mt("basic_logger4", log_dir + argv[argc - 1] + "_t5.log");
+	for (int i = 0; i < NUM_CHANNELS; i++)
+	{
+		args_vec[i]->async_log1 = spdlog::basic_logger_mt("basic_logger_" + std::to_string(i), log_dir + std::to_string(i) + "_t2.log");
+		args_vec[i]->async_log2 = spdlog::basic_logger_mt("basic_logger1_" + std::to_string(i), log_dir + std::to_string(i) + "_t3.log");
+		args_vec[i]->async_log3 = spdlog::basic_logger_mt("basic_logger3_" + std::to_string(i), log_dir + std::to_string(i) + "_t4.log");
+		args_vec[i]->store_log = spdlog::basic_logger_mt("basic_logger4_" + std::to_string(i), log_dir + std::to_string(i) + "_t5.log");
+	}
 
 	cpu_set_t mask;
 #ifdef DOB
-	assemble_threads.emplace_back(consumer_thread, &args);
-	CPU_ZERO(&mask);
-	CPU_SET(args.channel_id + 1 + 40, &mask);
-	pthread_setaffinity_np(assemble_threads[0].native_handle(), sizeof(cpu_set_t), &mask);
+	for (int i = 0; i < NUM_CHANNELS; i++)
+	{
+		assemble_threads.emplace_back(consumer_thread, args_vec[i]);
+		CPU_ZERO(&mask);
+		CPU_SET(args_vec[i]->channel_id + 1 + 40 + i, &mask);
+		pthread_setaffinity_np(assemble_threads[i].native_handle(), sizeof(cpu_set_t), &mask);
+	}
+	spdlog::warn("INIT DOB");
+
 #endif
 
 #ifdef GODOT
 
-	align_threads.emplace_back(align_thread, &args);
-	// cpu_set_t mask;
-	CPU_ZERO(&mask);
-	CPU_SET(args.channel_id + 2, &mask);
-	pthread_setaffinity_np(align_threads[0].native_handle(), sizeof(cpu_set_t), &mask);
+	for (int i = 0; i < NUM_CHANNELS; i++)
+	{
+		align_threads.emplace_back(align_thread, args_vec[i]);
+		// cpu_set_t mask;
+		CPU_ZERO(&mask);
+		CPU_SET(args_vec[i]->channel_id + 2, &mask);
+		pthread_setaffinity_np(align_threads[i].native_handle(), sizeof(cpu_set_t), &mask);
+	}
 
 #endif
 
 #ifdef KAZE
-	send_threads.emplace_back(send_to_pulsar, &args);
-	// cpu_set_t mask;
-	CPU_ZERO(&mask);
-	CPU_SET(args.channel_id + 2 + 40, &mask);
-	pthread_setaffinity_np(send_threads[0].native_handle(), sizeof(cpu_set_t), &mask);
+	for (int i = 0; i < NUM_CHANNELS; i++)
+	{
+
+		send_threads.emplace_back(send_to_pulsar, args_vec[0]);
+		// cpu_set_t mask;
+		CPU_ZERO(&mask);
+		CPU_SET(args_vec[i]->channel_id + 2 + 40, &mask);
+		pthread_setaffinity_np(send_threads[i].native_handle(), sizeof(cpu_set_t), &mask);
+	}
 #endif
 	// unsigned num_cpus = std::thread::hardware_concurrency();
 
-	std::thread t1(timer_thread, &args);
+	std::thread t1(timer_thread, args_vec[0]);
 	CPU_ZERO(&mask);
 	CPU_SET(4, &mask);
 	pthread_setaffinity_np(t1.native_handle(), sizeof(cpu_set_t), &mask);
@@ -1204,20 +1226,16 @@ int main(int argc, char *argv[])
 	/* Call lcore_main on the main core only. */
 	// lcore_main();
 
-	unsigned lcore_id;
-
-	int ports[2] = {0, 1};
-	int i = 0;
+	// int ports[2] = {0, 1};
+	// int i = 0;
 
 	RTE_LCORE_FOREACH_WORKER(lcore_id)
 	{
-		rte_eal_remote_launch(lcore_main, &ports[i], lcore_id);
+		rte_eal_remote_launch(lcore_main, args_vec[i], lcore_id);
 		i++;
 	}
 
 	timer_init = true;
-
-	
 
 	RTE_LCORE_FOREACH_WORKER(lcore_id)
 	{

@@ -69,6 +69,21 @@
 #include <rte_log.h>
 #include <rte_mempool.h>
 
+#include <stdint.h>
+#include <inttypes.h>
+#include <rte_eal.h>
+#include <rte_ethdev.h>
+#include <rte_cycles.h>
+#include <rte_lcore.h>
+#include <rte_mbuf.h>
+#include <sys/socket.h>
+#include <netinet/udp.h>
+
+#include <iostream>
+
+#include <netinet/ip.h>
+#include <thread>
+
 using namespace pulsar;
 /* 使用 fstack 进行UDP发包速率测试=1 
    使用 linux 进行UDP发包速率测试=1 
