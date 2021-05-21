@@ -6,9 +6,7 @@
 #define MESSAGE_LENGTH 64040
 #define P_BATCH_SEND_NUM 4
 
-#define NUM_CHANNELS 3
-
-
+// #define NUM_CHANNELS 1
 
 #define RX_RING_SIZE 1024
 #define TX_RING_SIZE 1024
@@ -22,7 +20,7 @@
 #define LINKED_NODE_NUM 10000000 // 1000k
 
 #define NOZOMI // recv thread
-#define DOB	   // assemble thread / consume thread
+#define DOB    // assemble thread / consume thread
 #define GODOT  // align thread
 #define KAZE   // send thread
 
@@ -36,7 +34,7 @@
 // #define QUEUE // using QUEUE version
 #define RING // using RING version
 // #define LOG // create log file
-// #define DROP // drop frame
+#define DROP // drop frame
 // #define FAKE_DATA // use fake data to overwrite true loads
 
 // #define VM
@@ -206,9 +204,45 @@ struct Thread_arg
     std::string _MSG_POOL;
 
 #endif
+    std::atomic<unsigned int> sent_frame;
+    std::atomic<unsigned int> forward_packet;
+    std::atomic<unsigned int> align_num;
 
+    std::atomic<bool> align_init;
+    std::atomic<bool> assem_init;
+    std::atomic<unsigned int> global_count;
+    std::atomic<bool> timer_init;
+    std::atomic<bool> send_thread_init;
+
+    std::atomic<unsigned int> drop_count;
+    std::atomic<unsigned int> mis;
+    std::atomic<unsigned int> mis_msg;
+
+    unsigned int last_count;
+    unsigned int last_forward;
     // ThreadSafe_Queue<int> frame_queue;
     // ThreadSafe_Queue<int> queue_to_send;
+    Thread_arg()
+    {
+        this->local_UDPFramePool = nullptr;
+        this->local_UDPFrameIndex = nullptr;
+
+        this->sent_frame = 0;
+        this->forward_packet = 0;
+        this->align_num = 0;
+
+        this->align_init = false;
+        this->assem_init = false;
+        this->global_count = 0;
+        this->timer_init = false;
+        this->send_thread_init = false;
+
+        this->drop_count = 0;
+        this->mis = 0;
+        this->mis_msg = 0;
+        this->last_count = 0;
+        this->last_forward = 0;
+    }
 };
 
 struct Send_arg

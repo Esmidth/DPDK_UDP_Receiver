@@ -4,19 +4,7 @@
 
 #include "Data_Struct.h"
 
-std::atomic<unsigned int> sent_frames(0);
-std::atomic<unsigned int> forward_packet(0);
 //
-std::atomic<unsigned int> align_num(0);
-std::atomic<bool> align_init(false);
-std::atomic<bool> assem_init(false);
-std::atomic<unsigned int> global_count(0);
-std::atomic<bool> timer_init(false);
-std::atomic<bool> send_thread_init(false);
-
-std::atomic<unsigned int> drop_count(0);
-std::atomic<unsigned int> mis(0);
-std::atomic<unsigned int> mis_msg(0);
 
 std::atomic<double> sec(0);
 
@@ -352,7 +340,7 @@ void consumer_thread(Thread_arg *sub)
 
 	sub->recv_ring = rte_ring_lookup(sub->PRI_2_SEC.c_str());
 
-	while (!assem_init)
+	while (!sub->assem_init)
 	{
 		void *tmpp;
 		if (rte_ring_dequeue(sub->recv_ring, &tmpp) < 0)
@@ -466,7 +454,6 @@ void consumer_thread(Thread_arg *sub)
 					memcpy(tmp, tmpp, 1472);
 					rte_mempool_put(sub->send_pool, tmpp);
 					packet_ptr = (udpPacket_1460 *)tmp;
-					// spdlog::info("{},packetSeq:{}",packet_ptr->frameSeq,packet_ptr->packetSeq);
 #endif
 
 #ifndef RING
@@ -516,7 +503,7 @@ void consumer_thread(Thread_arg *sub)
 					// unsigned int frameSeq = *(unsigned int*)(packet_ptr->data+2);
 					// async_file->info("frameSeq:{}",frameSeq);
 					// async_file->info("frameSeq:{},packetSeq:{}", packet_ptr->frameSeq, packet_ptr->packetSeq);
-					global_count++;
+					sub->global_count++;
 					//            sub->local_UDPFrameIndex->pUDPFrame[send_id] = nullptr;
 					frameSeq = packet_ptr->frameSeq;
 
@@ -525,7 +512,7 @@ void consumer_thread(Thread_arg *sub)
 #ifdef LOG
 						arg->async_log1->error("packetSeq:{},{}", packetSeq, packet_ptr->packetSeq);
 #endif
-						mis++;
+						sub->mis++;
 					}
 					else
 					{
@@ -664,7 +651,7 @@ void align_thread(Thread_arg *sub)
 					// break;
 					if (sec - last_sec > 0.01)
 					{
-						drop_count++;
+						sub->drop_count++;
 						drop = true;
 						break;
 					}
@@ -701,7 +688,7 @@ void align_thread(Thread_arg *sub)
 				}
 #endif
 
-				align_num++;
+				sub->align_num++;
 				sub->queue_to_send.enqueue(id);
 				// async_file1->warn("queue_to_send| enqueue: {}", id);
 				// std::this_thread::sleep_for(std::chrono::milliseconds(1));
@@ -792,7 +779,7 @@ void send_to_pulsar(void *arg)
 	// spdlog::info("KAZE INIT START");
 	Message msg;
 
-	send_thread_init = true;
+	sub->send_thread_init = true;
 	while (true)
 	{
 
@@ -840,7 +827,7 @@ void send_to_pulsar(void *arg)
 			// memset(sub->local_UDPFrameIndex->pUDPFrame[send_id],0,sizeof(udpFrame_1460));
 			sub->local_UDPFrameIndex->pUDPFrame[send_id] = nullptr;
 
-			sent_frames++;
+			sub->sent_frame++;
 
 			// printf("pulsar: ->%d: sent frame # %d | total sent: %d\n", sub->id, send_id, sent_frames.load());
 
@@ -895,10 +882,10 @@ void send_to_pulsar(void *arg)
 				sub->local_UDPFrameIndex->pUDPFrame[send_id] = nullptr;
 				//TODO: clear the indices here
 
-				sent_frames++;
+				sub->sent_frame++;
 				if (timeflag != last_timeflag)
 				{
-					mis_msg++;
+					sub->mis_msg++;
 				}
 				last_timeflag = (timeflag + 1000) % 5600000;
 			}
@@ -923,7 +910,7 @@ void send_to_pulsar(void *arg)
 	free(tmp);
 }
 
-void timer_thread(Thread_arg *args)
+void timer_thread(std::vector<Thread_arg *> *args_vec)
 {
 
 #ifdef GRAFANA
@@ -939,13 +926,16 @@ void timer_thread(Thread_arg *args)
 	send_thread_init = true;
 #endif
 
-	while (!timer_init || !send_thread_init)
+	while (!(*args_vec)[0]->timer_init || !(*args_vec)[0]->send_thread_init)
 	{
 		std::this_thread::yield();
 	}
 
 	std::this_thread::sleep_for(std::chrono::seconds(1));
-	assem_init = true;
+	for (int i = 0; i < args_vec->size(); i++)
+	{
+		(*args_vec)[i]->assem_init = true;
+	}
 
 	int last_count = 0;
 	int diff_count = 0;
@@ -956,46 +946,51 @@ void timer_thread(Thread_arg *args)
 
 	while (1)
 	{
+		for (ssize_t i = 0; i < args_vec->size(); i++)
+		{
+			diff_count = (*args_vec)[i]->global_count - (*args_vec)[i]->last_count;
+			(*args_vec)[i]->last_count = (*args_vec)[i]->global_count;
 
-		diff_count = global_count - last_count;
-		last_count = global_count;
+			diff_forward = (*args_vec)[i]->forward_packet - (*args_vec)[i]->last_forward;
+			(*args_vec)[i]->last_forward = (*args_vec)[i]->forward_packet;
 
-		diff_forward = forward_packet - last_forward;
-		last_forward = forward_packet;
+			// if (!(args)->frame_queue.empty() && !(args + 1)->frame_queue.empty())
+			// {
 
-		// if (!(args)->frame_queue.empty() && !(args + 1)->frame_queue.empty())
-		// {
-
-		//     int queue1_front_id = (args)->frame_queue.front();
-		//     int queue2_front_id = (args + 1)->frame_queue.front();
-		//     if ((args)->local_UDPFrameIndex->pUDPFrame[queue1_front_id] != nullptr && (args + 1)->local_UDPFrameIndex->pUDPFrame[queue2_front_id] != nullptr)
-		//     {
-		//         int queue1_front_count = (args)->local_UDPFrameIndex->pUDPFrame[queue1_front_id]->count;
-		//         int queue2_front_count = (args + 1)->local_UDPFrameIndex->pUDPFrame[queue1_front_id]->count;
-		//         spdlog::info("Sec: {}, Queue Size 0: {},Queue1_front:{} ,Queue Size 2: {}, Queue2_front:{}", sec, (args)->frame_queue.size(), queue1_front_count, (args + 1)->frame_queue.size(), queue2_front_count);
-		//     }
-		// }
-		// spdlog::info("Sec:{}, queue_to_send1: {}, queue_to_send2: {}, Sent Frames: {}, Forward Packets: {}", sec, (args)->queue_to_send.size(), (args + 1)->queue_to_send.size(), sent_frames, forward_packet);
+			//     int queue1_front_id = (args)->frame_queue.front();
+			//     int queue2_front_id = (args + 1)->frame_queue.front();
+			//     if ((args)->local_UDPFrameIndex->pUDPFrame[queue1_front_id] != nullptr && (args + 1)->local_UDPFrameIndex->pUDPFrame[queue2_front_id] != nullptr)
+			//     {
+			//         int queue1_front_count = (args)->local_UDPFrameIndex->pUDPFrame[queue1_front_id]->count;
+			//         int queue2_front_count = (args + 1)->local_UDPFrameIndex->pUDPFrame[queue1_front_id]->count;
+			//         spdlog::info("Sec: {}, Queue Size 0: {},Queue1_front:{} ,Queue Size 2: {}, Queue2_front:{}", sec, (args)->frame_queue.size(), queue1_front_count, (args + 1)->frame_queue.size(), queue2_front_count);
+			//     }
+			// }
+			// spdlog::info("Sec:{}, queue_to_send1: {}, queue_to_send2: {}, Sent Frames: {}, Forward Packets: {}", sec, (args)->queue_to_send.size(), (args + 1)->queue_to_send.size(), sent_frames, forward_packet);
 #ifdef DEBUG
 
-		// spdlog::info("Sec:{0:.1f}, Align: {1} ,Sent: {2}, ForwardP: {3},consumerP:{7}, mis:{8}, mis_msg:{9}, c_Speed:{10:.2f}, f_Speed:{11:.2f},queue1:{4}, queue2:{5}, queue3:{6}, drop:{12}", sec, align_num, sent_frames, forward_packet, args->mem_queue.size_approx(), args->frame_queue.size_approx(), args->queue_to_send.size_approx(), global_count, mis, mis_msg, diff_count * 0.00001123046875 / TIME_STAMP, diff_forward * 0.00001123046875 / TIME_STAMP, drop_count);
+			// spdlog::info("Sec:{0:.1f}, Align: {1} ,Sent: {2}, ForwardP: {3},consumerP:{7}, mis:{8}, mis_msg:{9}, c_Speed:{10:.2f}, f_Speed:{11:.2f},queue1:{4}, queue2:{5}, queue3:{6}, drop:{12}", sec, align_num, sent_frames, forward_packet, args->mem_queue.size_approx(), args->frame_queue.size_approx(), args->queue_to_send.size_approx(), global_count, mis, mis_msg, diff_count * 0.00001123046875 / TIME_STAMP, diff_forward * 0.00001123046875 / TIME_STAMP, drop_count);
 
 #ifdef GRAFANA
-		std::string output_to_mq = fmt::format("nodeNum:{13},Sec:{0:.1f},align_frames:{1},sent_frames:{2},forward_packets:{3},consume_packets:{7},missing_packets:{8},missing_frames:{9},consumer_speed:{10:.2f},forward_speed:{11:.2f},queue1:{4},queue2:{5},queue3:{6},drop_frames:{12}", sec, align_num, sent_frames, forward_packet, args->mem_queue.size_approx(), args->frame_queue.size_approx(), args->queue_to_send.size_approx(), global_count, mis, mis_msg, diff_count * 0.00001123046875 / TIME_STAMP, diff_forward * 0.00001123046875 / TIME_STAMP, drop_count, args->channel_id / 4);
-		socket.send(zmq::buffer(output_to_mq), zmq::send_flags::none);
+			std::string output_to_mq = fmt::format("nodeNum:{13},Sec:{0:.1f},align_frames:{1},sent_frames:{2},forward_packets:{3},consume_packets:{7},missing_packets:{8},missing_frames:{9},consumer_speed:{10:.2f},forward_speed:{11:.2f},queue1:{4},queue2:{5},queue3:{6},drop_frames:{12}", sec, align_num, sent_frames, forward_packet, args->mem_queue.size_approx(), args->frame_queue.size_approx(), args->queue_to_send.size_approx(), global_count, mis, mis_msg, diff_count * 0.00001123046875 / TIME_STAMP, diff_forward * 0.00001123046875 / TIME_STAMP, drop_count, args->channel_id / 4);
+			socket.send(zmq::buffer(output_to_mq), zmq::send_flags::none);
 
-		zmq::message_t reply{};
-		socket.recv(reply, zmq::recv_flags::none);
+			zmq::message_t reply{};
+			socket.recv(reply, zmq::recv_flags::none);
 #endif
 #ifdef DEBUG_DISPLAY
-		spdlog::info("Sec:{0:.1f}, align num: {1} ,Sent Frames: {2}, Forward Packets: {3}, queue1:{4}, queue2:{5}, queue3:{6}, global_count:{7}, mis:{8}, mis_msg:{9}, Speed:{10:.2f}", sec, align_num, sent_frames, forward_packet, args->mem_queue.size_approx(), args->frame_queue.size_approx(), args->queue_to_send.size_approx(), global_count, mis, mis_msg, diff_count * 0.00001123046875 / TIME_STAMP);
+
+			spdlog::info("C{11}:Sec:{0:.1f}, align num: {1} ,Sent Frames: {2}, Forward Packets: {3}, queue1:{4}, queue2:{5}, queue3:{6}, global_count:{7}, mis:{8}, mis_msg:{9}, Speed:{10:.2f}", sec, (*args_vec)[i]->align_num, (*args_vec)[i]->sent_frame, (*args_vec)[i]->forward_packet, (*args_vec)[i]->mem_queue.size_approx(), (*args_vec)[i]->frame_queue.size_approx(), (*args_vec)[i]->queue_to_send.size_approx(), (*args_vec)[i]->global_count, (*args_vec)[i]->mis, (*args_vec)[i]->mis_msg, diff_count * 0.00001123046875 / TIME_STAMP, i);
+
 #endif
 #endif
 
 #ifndef DEBUG
-		spdlog::info("秒:{0}, 组帧: {2} ,发送: {3}, 收包: {4}, 拆包:{5}，速率：{1:.2f} Gbps, mis:{6}, mis_msg:{7}", sec, diff_count * 0.00001123046875, align_num, sent_frames, forward_packet, global_count, mis, mis_msg);
+			spdlog::info("秒:{0}, 组帧: {2} ,发送: {3}, 收包: {4}, 拆包:{5}，速率：{1:.2f} Gbps, mis:{6}, mis_msg:{7}", sec, diff_count * 0.00001123046875, align_num, sent_frames, forward_packet, global_count, mis, mis_msg);
 
 #endif
+		}
+		std::cout << std::endl;
 		std::this_thread::sleep_for(std::chrono::milliseconds((int)(TIME_STAMP * 1000)));
 
 		sec = sec + TIME_STAMP;
@@ -1022,6 +1017,15 @@ int main(int argc, char *argv[])
 	argc -= ret;
 	argv += ret;
 
+	int i = 0;
+	RTE_LCORE_FOREACH_WORKER(lcore_id)
+	{
+		// std::cout << lcore_id <<" ," <<std::endl;
+		// args_vec[i]->channel_id = lcore_id;
+		i++;
+	}
+	const int NUM_CHANNELS = i;
+
 	// Thread_arg args;
 	std::vector<Thread_arg *> args_vec;
 	std::vector<std::thread> align_threads;
@@ -1035,6 +1039,13 @@ int main(int argc, char *argv[])
 		args_vec[i]->pulsar_topic_name = "persistent://public/my-namespace/test-topic" + std::to_string(i);
 		// args_vec[i]->channel_id = (10 + i) * 2;
 		args_vec[i]->proc_id = i;
+	}
+	i = 0;
+	RTE_LCORE_FOREACH_WORKER(lcore_id)
+	{
+		// std::cout << lcore_id <<" ," <<std::endl;
+		args_vec[i]->channel_id = lcore_id;
+		i++;
 	}
 
 	// for(int i = 0;i<NUM_CHANNELS;i++)
@@ -1051,14 +1062,6 @@ int main(int argc, char *argv[])
 	}
 	std::cout << "______" << std::endl;
 
-	int i = 0;
-	RTE_LCORE_FOREACH_WORKER(lcore_id)
-	{
-		// std::cout << lcore_id <<" ," <<std::endl;
-		args_vec[i]->channel_id = lcore_id;
-		i++;
-	}
-
 	for (int i = 0; i < NUM_CHANNELS; i++)
 	{
 		printf("id:%d\n", args_vec[i]->id);
@@ -1066,7 +1069,7 @@ int main(int argc, char *argv[])
 		std::cout << "channel_id:" << args_vec[i]->channel_id << std::endl;
 		std::cout << "proc_id:" << args_vec[i]->proc_id << std::endl;
 	}
-	return 0;
+	// return 0;
 
 	// args.id = 1400;
 	// args.offset = 0;
@@ -1147,7 +1150,7 @@ int main(int argc, char *argv[])
 	{
 		assemble_threads.emplace_back(consumer_thread, args_vec[i]);
 		CPU_ZERO(&mask);
-		CPU_SET(args_vec[i]->channel_id + 1 + 40 + i, &mask);
+		CPU_SET(args_vec[i]->channel_id + 40, &mask);
 		pthread_setaffinity_np(assemble_threads[i].native_handle(), sizeof(cpu_set_t), &mask);
 	}
 	spdlog::warn("INIT DOB");
@@ -1161,7 +1164,7 @@ int main(int argc, char *argv[])
 		align_threads.emplace_back(align_thread, args_vec[i]);
 		// cpu_set_t mask;
 		CPU_ZERO(&mask);
-		CPU_SET(args_vec[i]->channel_id + 2, &mask);
+		CPU_SET(args_vec[i]->channel_id + 1, &mask);
 		pthread_setaffinity_np(align_threads[i].native_handle(), sizeof(cpu_set_t), &mask);
 	}
 
@@ -1171,16 +1174,16 @@ int main(int argc, char *argv[])
 	for (int i = 0; i < NUM_CHANNELS; i++)
 	{
 
-		send_threads.emplace_back(send_to_pulsar, args_vec[0]);
+		send_threads.emplace_back(send_to_pulsar, args_vec[i]);
 		// cpu_set_t mask;
 		CPU_ZERO(&mask);
-		CPU_SET(args_vec[i]->channel_id + 2 + 40, &mask);
+		CPU_SET(args_vec[i]->channel_id + 1 + 40, &mask);
 		pthread_setaffinity_np(send_threads[i].native_handle(), sizeof(cpu_set_t), &mask);
 	}
 #endif
 	// unsigned num_cpus = std::thread::hardware_concurrency();
 
-	std::thread t1(timer_thread, args_vec[0]);
+	std::thread t1(timer_thread, &args_vec);
 	CPU_ZERO(&mask);
 	CPU_SET(4, &mask);
 	pthread_setaffinity_np(t1.native_handle(), sizeof(cpu_set_t), &mask);
@@ -1228,14 +1231,20 @@ int main(int argc, char *argv[])
 
 	// int ports[2] = {0, 1};
 	// int i = 0;
-
+	spdlog::info("KKKKK");
+	i = 0;
 	RTE_LCORE_FOREACH_WORKER(lcore_id)
 	{
 		rte_eal_remote_launch(lcore_main, args_vec[i], lcore_id);
+
 		i++;
 	}
 
-	timer_init = true;
+	for (int i = 0; i < NUM_CHANNELS; i++)
+	{
+		args_vec[i]->timer_init = true;
+	}
+	// timer_init = true;
 
 	RTE_LCORE_FOREACH_WORKER(lcore_id)
 	{
