@@ -11,7 +11,7 @@
 #define RX_RING_SIZE 1024
 #define TX_RING_SIZE 1024
 #define MAX_PKT_BURST 32
-#define MEMPOOL_CACHE_SIZE 256
+#define MEMPOOL_CACHE_SIZE 512
 
 #define NUM_MBUFS 8191
 #define MBUF_CACHE_SIZE 250
@@ -19,14 +19,17 @@
 
 #define LINKED_NODE_NUM 10000000 // 1000k
 
+#define TIMER_RESOLUTION_CYCLES 20000000ULL /* around 10ms at 2 Ghz */
+
+
 #define NOZOMI // recv thread
 #define DOB    // assemble thread / consume thread
 #define GODOT  // align thread
 #define KAZE   // send thread
 
-// #define SEND // send to MQ
-#define SEND_BATCH
-// #define SEND_COMPRESS // enable compression
+#define SEND // send to MQ
+// #define SEND_BATCH
+#define SEND_COMPRESS // enable compression
 
 // #define GRAFANA
 #define DEBUG_DISPLAY

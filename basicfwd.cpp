@@ -255,7 +255,7 @@ lcore_main(void *arg)
 			}
 			// printf("frameSeq:%d, packetSeq:%d, packetLen:%d\n", tmp_packet_ptr->frameSeq, tmp_packet_ptr->packetSeq, tmp_packet_ptr->packetLen);
 			// print_pkt(bufs[i]);
-			count[port] += 1;
+			// count[port] += 1;
 			// }
 		}
 		// printf("count:%d port_id:%d\n----------\n", count[port], port);
@@ -358,6 +358,8 @@ void consumer_thread(Thread_arg *sub)
 			continue;
 		}
 		packet_ptr = (udpPacket_1460 *)tmpp;
+		printf("%d: %x, %x, %x, %x, %x, %x, %x, %x\n", packet_ptr->packetSeq, *(packet_ptr->data), *(packet_ptr->data + 1), *(packet_ptr->data + 2), *(packet_ptr->data + 3), *(packet_ptr->data + 4), *(packet_ptr->data + 5), *(packet_ptr->data + 6), *(packet_ptr->data + 7));
+
 		if (packet_ptr->packetSeq == PACK_NUM - 1)
 		{
 			rte_mempool_put(sub->send_pool, tmpp);
@@ -626,6 +628,7 @@ void align_thread(Thread_arg *sub)
 	// }
 
 	bool drop = false;
+	uint64_t prev_tsc = 0, cur_tsc, diff_tsc;
 
 	spdlog::warn("ALIGN_INIT");
 	while (1)
@@ -639,22 +642,29 @@ void align_thread(Thread_arg *sub)
 
 			if (sub->local_UDPFrameIndex->pUDPFrame[id] != NULL)
 			{
-				last_sec = sec;
+				cur_tsc = rte_rdtsc();
+				prev_tsc = cur_tsc;
 				// printf("NOT NULL\n");
 				// printf("CURRENT COUNT: %d\n",sub->local_UDPFrameIndex->pUDPFrame[id]->count);
 				//     printf("current_pack_num: %d\n",sub->local_UDPFrameIndex->pUDPFrame[id]->count);
 				while (sub->local_UDPFrameIndex->pUDPFrame[id]->count != sub->local_UDPFrameIndex->pUDPFrame[id]->packetNum)
 				{
 #ifdef DROP
-					// sub->local_UDPFrameIndex->pUDPFrame[id]->count = 0;
-					// sub->local_UDPFrameIndex->pUDPFrame[id] = nullptr;
-					// break;
-					if (sec - last_sec > 0.01)
+					cur_tsc = rte_rdtsc();
+					diff_tsc = cur_tsc - prev_tsc;
+					if (diff_tsc > TIMER_RESOLUTION_CYCLES*10)
 					{
 						sub->drop_count++;
 						drop = true;
 						break;
 					}
+					// sub->local_UDPFrameIndex->pUDPFrame[id]->count = 0;
+					// sub->local_UDPFrameIndex->pUDPFrame[id] = nullptr;
+					// break;
+					// if (sec - last_sec > 0.01)
+					// {
+
+					// }
 #endif
 // if (sub->frame_queue.try_pop(id))
 // {
@@ -690,6 +700,7 @@ void align_thread(Thread_arg *sub)
 
 				sub->align_num++;
 				sub->queue_to_send.enqueue(id);
+
 				// async_file1->warn("queue_to_send| enqueue: {}", id);
 				// std::this_thread::sleep_for(std::chrono::milliseconds(1));
 			}
@@ -749,8 +760,8 @@ void send_to_pulsar(void *arg)
 	// producerconfiguration.setCompressionType(pulsar::CompressionZSTD);
 	// producerconfiguration.setCompressionType(pulsar::CompressionZLib);
 	// Client *client = new Client("pulsar://192.168.20.32:6650,192.168.20.37:6650,192.168.20.36:6650");
-	// Client *client = new Client("pulsar://192.168.20.50:6650,192.168.20.50:6651");
-	Client *client = new Client("pulsar://localhost:6650");
+	Client *client = new Client("pulsar://192.168.20.50:6650");
+	// Client *client = new Client("pulsar://localhost:6650");
 
 	//        clients[i] = new Client("pulsar://localhost:6650");
 	// std::string topic_name = "LD_" + std::to_string(thread_id);
@@ -774,7 +785,7 @@ void send_to_pulsar(void *arg)
 
 	// int sent_frames = 0;
 	int send_id;
-	unsigned int timeflag;
+	unsigned int timeflag = 0;
 	unsigned int last_timeflag = 0;
 	// spdlog::info("KAZE INIT START");
 	Message msg;
@@ -819,7 +830,7 @@ void send_to_pulsar(void *arg)
 			// spdlog::info("KAZE INIT MESG BUILD");
 			msg = MessageBuilder().setContent(tmp, MESSAGE_LENGTH + 2).build();
 #ifdef SEND
-			producer.sendAsync(msg, NULL);
+			// producer.sendAsync(msg, NULL);
 #endif
 			// producer.send(msg);
 			sub->local_UDPFrameIndex->pUDPFrame[send_id]->count = 0;
@@ -839,14 +850,15 @@ void send_to_pulsar(void *arg)
 	// int i = 0;
 	spdlog::info("KAZE INIT DONE");
 	int queue_size = 0;
+	timeflag = 0;
 
 	while (1)
 	{
 		queue_size = sub->queue_to_send.size_approx();
 		// printf("queue_size:%d\n",queue_size);
-		if (queue_size > 40)
+		if (queue_size > 10)
 		{
-			queue_size = 40;
+			queue_size = 10;
 			// usleep(1);
 			//    printf("queque length: %d\n",send_arg->queue_to_send.size());
 			// printf("send_to_queue: %d\n", sub->queue_to_send.size());
@@ -865,7 +877,10 @@ void send_to_pulsar(void *arg)
 				memcpy(tmp + (MESSAGE_LENGTH + 2) * i, &send_id, sizeof(unsigned short));
 				// memcpy(&timeflag, tmp + 26 + (MESSAGE_LENGTH + 2) * i, sizeof(int));
 
-				memcpy(&timeflag, tmp + 26 + (MESSAGE_LENGTH + 2) * i, sizeof(int));
+				// memcpy(&timeflag, tmp + 26 + (MESSAGE_LENGTH + 2) * i, sizeof(int));
+				memcpy(tmp + 26 + (MESSAGE_LENGTH + 2) * i,&timeflag, sizeof(int));
+				timeflag += 1000;
+				// spdlog::info("timeflag:{}",timeflag);
 #ifdef LOG
 
 				sub->async_log3->info("init sent timeflag:{}", timeflag);
@@ -887,7 +902,7 @@ void send_to_pulsar(void *arg)
 				{
 					sub->mis_msg++;
 				}
-				last_timeflag = (timeflag + 1000) % 5600000;
+				last_timeflag = (timeflag + 1000); //% 5600000;
 			}
 
 			msg = MessageBuilder().setContent(tmp, (MESSAGE_LENGTH + 2) * queue_size).build();
@@ -923,7 +938,11 @@ void timer_thread(std::vector<Thread_arg *> *args_vec)
 	// assem_init = true;
 
 #ifndef KAZE
-	send_thread_init = true;
+	for (int i = 0; i < args_vec->size(); i++)
+	{
+		(*args_vec)[i]->send_thread_init = true;
+	}
+
 #endif
 
 	while (!(*args_vec)[0]->timer_init || !(*args_vec)[0]->send_thread_init)
@@ -1036,7 +1055,7 @@ int main(int argc, char *argv[])
 	{
 		args_vec.emplace_back(new Thread_arg());
 		args_vec[i]->id = 1400 + i;
-		args_vec[i]->pulsar_topic_name = "persistent://public/my-namespace/test-topic" + std::to_string(i);
+		args_vec[i]->pulsar_topic_name = "persistent://public/default/test-topi"+ std::to_string(i);
 		// args_vec[i]->channel_id = (10 + i) * 2;
 		args_vec[i]->proc_id = i;
 	}
@@ -1185,7 +1204,7 @@ int main(int argc, char *argv[])
 
 	std::thread t1(timer_thread, &args_vec);
 	CPU_ZERO(&mask);
-	CPU_SET(4, &mask);
+	CPU_SET(20, &mask);
 	pthread_setaffinity_np(t1.native_handle(), sizeof(cpu_set_t), &mask);
 
 	/* Check that there is an even number of ports to send/receive on. */
@@ -1231,7 +1250,7 @@ int main(int argc, char *argv[])
 
 	// int ports[2] = {0, 1};
 	// int i = 0;
-	spdlog::info("KKKKK");
+	// spdlog::info("KKKKK");
 	i = 0;
 	RTE_LCORE_FOREACH_WORKER(lcore_id)
 	{
