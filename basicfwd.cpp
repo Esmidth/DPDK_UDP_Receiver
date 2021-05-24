@@ -231,6 +231,9 @@ lcore_main(void *arg)
 		// }
 		// struct ip* ip_packet;
 
+
+		//TODO: switch to bulk
+
 		for (int i = 0; i < nb_rx; i++)
 		{
 			// if (bufs[i]->pkt_len == 1514)
@@ -265,6 +268,7 @@ lcore_main(void *arg)
 		// 		bufs, nb_rx);
 		const uint16_t nb_tx = 0;
 
+		//TODO: remove free packets here and add to DOB thread
 		/* Free any unsent packets. */
 		if (unlikely(nb_tx < nb_rx))
 		{
@@ -453,6 +457,7 @@ void consumer_thread(Thread_arg *sub)
 						std::this_thread::yield();
 						continue;
 					}
+					//TODO: remove rte_mempool_put and switch to rte_pkt_free
 					memcpy(tmp, tmpp, 1472);
 					rte_mempool_put(sub->send_pool, tmpp);
 					packet_ptr = (udpPacket_1460 *)tmp;
@@ -584,6 +589,7 @@ void consumer_thread(Thread_arg *sub)
 						pUDPFrameIndex->pUDPFrame[frameSeq]->packetNum = PACK_NUM;
 						// pUDPFrameIndex->pUDPFrame[frameSeq]->packetNum = packet_ptr->packetNum;
 						sub->frame_queue.enqueue(frameSeq);
+						//TODO: switch rte_ring from lockless queue
 					}
 					else
 					{
