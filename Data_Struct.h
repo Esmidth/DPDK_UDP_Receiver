@@ -43,7 +43,7 @@
 
 #ifdef VM
 
-#define POOL_SIZE 100
+#define POOL_SIZE 1000
 #define CACHE_SIZE 134217722
 #define CACHE_NUM 70000
 

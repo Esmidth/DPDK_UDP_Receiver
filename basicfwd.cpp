@@ -24,8 +24,8 @@ const unsigned priv_data_sz = 0;
 
 #ifdef VM
 const unsigned flags = 0;
-const unsigned ring_size = 1024;
-const unsigned pool_size = 1024;
+const unsigned ring_size = 4096;
+const unsigned pool_size = 4096;
 const unsigned pool_cache = 320;
 const unsigned priv_data_sz = 0;
 #endif
@@ -179,6 +179,7 @@ void print_pkt(struct rte_mbuf *buf)
  * The lcore main. This is the main thread that does the work, reading from
  * an input port and writing to an output port.
  */
+//NOZOMI
 static __rte_noreturn int
 lcore_main(void *arg)
 {
@@ -321,6 +322,7 @@ static int check_port_pair_config(void)
 	return 0;
 }
 
+//DOB
 void consumer_thread(Thread_arg *sub)
 {
 	udpFramesIndex65536_1460 *pUDPFrameIndex;
@@ -621,6 +623,7 @@ void consumer_thread(Thread_arg *sub)
 	}
 }
 
+//GODOT
 void align_thread(Thread_arg *sub)
 {
 	// sleep(1);
@@ -765,8 +768,8 @@ void send_to_pulsar(void *arg)
 	// producerconfiguration.setCompressionType(pulsar::CompressionZSTD);
 	// producerconfiguration.setCompressionType(pulsar::CompressionZLib);
 	// Client *client = new Client("pulsar://192.168.20.32:6650,192.168.20.37:6650,192.168.20.36:6650");
-	Client *client = new Client("pulsar://192.168.20.50:6650");
-	// Client *client = new Client("pulsar://localhost:6650");
+	// Client *client = new Client("pulsar://192.168.20.50:6650");
+	Client *client = new Client("pulsar://localhost:6650");
 
 	//        clients[i] = new Client("pulsar://localhost:6650");
 	// std::string topic_name = "LD_" + std::to_string(thread_id);
@@ -1080,9 +1083,9 @@ int main(int argc, char *argv[])
 	for (int i = 0; i < NUM_CHANNELS; i++)
 	{
 		printf("id:%d\n", args_vec[i]->id);
-		std::cout << args_vec[i]->pulsar_topic_name << std::endl;
-		std::cout << args_vec[i]->channel_id << std::endl;
-		std::cout << args_vec[i]->proc_id << std::endl;
+		std::cout << "pulsar_topic_name: " << args_vec[i]->pulsar_topic_name << std::endl;
+		std::cout << "channel_id: " << args_vec[i]->channel_id << std::endl;
+		std::cout << "proc_id: " << args_vec[i]->proc_id << std::endl;
 	}
 	std::cout << "______" << std::endl;
 
@@ -1174,7 +1177,7 @@ int main(int argc, char *argv[])
 	{
 		assemble_threads.emplace_back(consumer_thread, args_vec[i]);
 		CPU_ZERO(&mask);
-		CPU_SET(args_vec[i]->channel_id + 40, &mask);
+		CPU_SET(args_vec[i]->channel_id + 1, &mask);
 		pthread_setaffinity_np(assemble_threads[i].native_handle(), sizeof(cpu_set_t), &mask);
 	}
 	spdlog::warn("INIT DOB");
@@ -1188,7 +1191,7 @@ int main(int argc, char *argv[])
 		align_threads.emplace_back(align_thread, args_vec[i]);
 		// cpu_set_t mask;
 		CPU_ZERO(&mask);
-		CPU_SET(args_vec[i]->channel_id + 1, &mask);
+		CPU_SET(args_vec[i]->channel_id + 2, &mask);
 		pthread_setaffinity_np(align_threads[i].native_handle(), sizeof(cpu_set_t), &mask);
 	}
 
@@ -1201,7 +1204,8 @@ int main(int argc, char *argv[])
 		send_threads.emplace_back(send_to_pulsar, args_vec[i]);
 		// cpu_set_t mask;
 		CPU_ZERO(&mask);
-		CPU_SET(args_vec[i]->channel_id + 1 + 40, &mask);
+		// CPU_SET(args_vec[i]->channel_id + 1 + 40, &mask);
+		CPU_SET(args_vec[i]->channel_id + 3, &mask);
 		pthread_setaffinity_np(send_threads[i].native_handle(), sizeof(cpu_set_t), &mask);
 	}
 #endif
@@ -1209,7 +1213,8 @@ int main(int argc, char *argv[])
 
 	std::thread t1(timer_thread, &args_vec);
 	CPU_ZERO(&mask);
-	CPU_SET(20, &mask);
+	// CPU_SET(20, &mask);
+	CPU_SET(4, &mask);
 	pthread_setaffinity_np(t1.native_handle(), sizeof(cpu_set_t), &mask);
 
 	/* Check that there is an even number of ports to send/receive on. */
