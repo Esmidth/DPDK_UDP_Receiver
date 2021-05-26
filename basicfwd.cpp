@@ -231,7 +231,6 @@ lcore_main(void *arg)
 		// }
 		// struct ip* ip_packet;
 
-
 		//TODO: switch to bulk
 
 		for (int i = 0; i < nb_rx; i++)
@@ -658,7 +657,7 @@ void align_thread(Thread_arg *sub)
 #ifdef DROP
 					cur_tsc = rte_rdtsc();
 					diff_tsc = cur_tsc - prev_tsc;
-					if (diff_tsc > TIMER_RESOLUTION_CYCLES*10)
+					if (diff_tsc > TIMER_RESOLUTION_CYCLES * 10)
 					{
 						sub->drop_count++;
 						drop = true;
@@ -884,7 +883,7 @@ void send_to_pulsar(void *arg)
 				// memcpy(&timeflag, tmp + 26 + (MESSAGE_LENGTH + 2) * i, sizeof(int));
 
 				// memcpy(&timeflag, tmp + 26 + (MESSAGE_LENGTH + 2) * i, sizeof(int));
-				memcpy(tmp + 26 + (MESSAGE_LENGTH + 2) * i,&timeflag, sizeof(int));
+				memcpy(tmp + 26 + (MESSAGE_LENGTH + 2) * i, &timeflag, sizeof(int));
 				timeflag += 1000;
 				// spdlog::info("timeflag:{}",timeflag);
 #ifdef LOG
@@ -1061,7 +1060,7 @@ int main(int argc, char *argv[])
 	{
 		args_vec.emplace_back(new Thread_arg());
 		args_vec[i]->id = 1400 + i;
-		args_vec[i]->pulsar_topic_name = "persistent://public/default/test-topi"+ std::to_string(i);
+		args_vec[i]->pulsar_topic_name = "persistent://public/default/test-topi" + std::to_string(i);
 		// args_vec[i]->channel_id = (10 + i) * 2;
 		args_vec[i]->proc_id = i;
 	}
@@ -1238,6 +1237,7 @@ int main(int argc, char *argv[])
 	mbuf_pool = rte_pktmbuf_pool_create("MBUF_POOL", NUM_MBUFS * nb_ports,
 										MBUF_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
 	printf("RTE_MBUF_DEFAULT_BUF_SIZE:%d\n", RTE_MBUF_DEFAULT_BUF_SIZE);
+	// TODO: switch to multi numa socket version, allocate mbuf_pool on each numa socket.
 
 	if (mbuf_pool == NULL)
 		rte_exit(EXIT_FAILURE, "Cannot create mbuf pool\n");

@@ -1,6 +1,6 @@
 #include "common.h"
 
-#define PACK_NUM 44
+#define PACK_NUM 23
 #define DATA_LENGTH 1464
 #define INDEX_SIZE 68000
 #define MESSAGE_LENGTH 64040
@@ -21,15 +21,14 @@
 
 #define TIMER_RESOLUTION_CYCLES 20000000ULL /* around 10ms at 2 Ghz */
 
-
 #define NOZOMI // recv thread
 #define DOB    // assemble thread / consume thread
 #define GODOT  // align thread
 #define KAZE   // send thread
 
-#define SEND // send to MQ
+// #define SEND // send to MQ
 // #define SEND_BATCH
-#define SEND_COMPRESS // enable compression
+// #define SEND_COMPRESS // enable compression
 
 // #define GRAFANA
 #define DEBUG_DISPLAY
@@ -40,7 +39,7 @@
 #define DROP // drop frame
 // #define FAKE_DATA // use fake data to overwrite true loads
 
-// #define VM
+#define VM
 
 #ifdef VM
 
@@ -65,32 +64,32 @@
 
 typedef unsigned char byte;
 
-// class udpPacket_1460
-// {
-// public:
-//     unsigned short frameSeq;
-//     unsigned short packetSeq;
-//     unsigned short packetLen;
-//     unsigned short reserver;
-//     unsigned char data[1460];
-//     unsigned char checksum[4];
-// };
+class udpPacket_1460
+{
+public:
+    unsigned short frameSeq;
+    unsigned short packetSeq;
+    unsigned short packetLen;
+    unsigned short reserver;
+    unsigned char data[1460];
+    unsigned char checksum[4];
+};
 
 // class udpPacket_1460{
 //     public:
 //     unsigned char data[1472];
 // };
 
-class udpPacket_1460
-{
-public:
-    unsigned short nodeNum;   // 节点编号
-    unsigned short frameSeq;  // 数据帧编号
-    unsigned char packetNum;  // 分包总数
-    unsigned char packetSeq;  // 分包编号
-    unsigned short packetLen; // 数据包长度
-    unsigned char data[1464]; // 分包数据
-};
+// class udpPacket_1460
+// {
+// public:
+//     unsigned short nodeNum;   // 节点编号
+//     unsigned short frameSeq;  // 数据帧编号
+//     unsigned char packetNum;  // 分包总数
+//     unsigned char packetSeq;  // 分包编号
+//     unsigned short packetLen; // 数据包长度
+//     unsigned char data[1464]; // 分包数据
+// };
 
 // class udpPacket_1460
 // {
