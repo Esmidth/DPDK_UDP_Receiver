@@ -200,10 +200,12 @@ struct Thread_arg
 #ifdef RING
 
     struct rte_mempool *send_pool;
-    struct rte_ring *send_ring;
-    struct rte_ring *recv_ring;
-    std::string PRI_2_SEC;
-    std::string _MSG_POOL;
+    struct rte_ring *ring1_2;
+    struct rte_ring *ring2_3;
+    struct rte_ring *ring3_4;
+    // struct rte_ring *recv_ring;
+    // std::string PRI_2_SEC;
+    // std::string _MSG_POOL;
 
 #endif
     std::atomic<unsigned int> sent_frame;

@@ -252,7 +252,7 @@ lcore_main(void *arg)
 			// }
 			// printf("\n");
 			rte_memcpy(msg, tmp_packet_ptr, 1472);
-			if (rte_ring_enqueue(sub->send_ring, msg) < 0)
+			if (rte_ring_enqueue(sub->ring1_2, msg) < 0)
 			{
 				rte_panic("Fail to send message, message discard\n");
 			}
@@ -343,12 +343,12 @@ void consumer_thread(Thread_arg *sub)
 
 #ifdef RING
 
-	sub->recv_ring = rte_ring_lookup(sub->PRI_2_SEC.c_str());
+	// sub->recv_ring = rte_ring_lookup(sub->PRI_2_SEC.c_str());
 
 	while (!sub->assem_init)
 	{
 		void *tmpp;
-		if (rte_ring_dequeue(sub->recv_ring, &tmpp) < 0)
+		if (rte_ring_dequeue(sub->ring1_2, &tmpp) < 0)
 		{
 			continue;
 		}
@@ -358,7 +358,7 @@ void consumer_thread(Thread_arg *sub)
 	while (true)
 	{
 		void *tmpp;
-		if (rte_ring_dequeue(sub->recv_ring, &tmpp) < 0)
+		if (rte_ring_dequeue(sub->ring1_2, &tmpp) < 0)
 		{
 			continue;
 		}
@@ -451,7 +451,7 @@ void consumer_thread(Thread_arg *sub)
 
 #ifdef RING
 					void *tmpp;
-					if (rte_ring_dequeue(sub->recv_ring, &tmpp) < 0)
+					if (rte_ring_dequeue(sub->ring1_2, &tmpp) < 0)
 					{
 
 						// rte_panic("Fail to dequeue\n");
@@ -590,6 +590,7 @@ void consumer_thread(Thread_arg *sub)
 						pUDPFrameIndex->pUDPFrame[frameSeq]->packetNum = PACK_NUM;
 						// pUDPFrameIndex->pUDPFrame[frameSeq]->packetNum = packet_ptr->packetNum;
 						sub->frame_queue.enqueue(frameSeq);
+						
 						//TODO: switch rte_ring from lockless queue
 					}
 					else
@@ -1109,20 +1110,22 @@ int main(int argc, char *argv[])
 #ifndef QUEUE
 
 #ifdef RING
+	std::string PRI_2_SEC;
+	std::string _MSG_POOL;
 
 	for (int i = 0; i < NUM_CHANNELS; i++)
 	{
-		args_vec[i]->PRI_2_SEC = "PRI_2_SEC" + std::to_string(i);
-		args_vec[i]->_MSG_POOL = "MSG_POOL" + std::to_string(i);
+		PRI_2_SEC = "PRI_2_SEC" + std::to_string(i);
+		_MSG_POOL = "MSG_POOL" + std::to_string(i);
 		spdlog::info("try to malloc ring:{}", i);
-		args_vec[i]->send_ring = rte_ring_create(args_vec[i]->PRI_2_SEC.c_str(), ring_size, rte_socket_id(), 0);
-		if (args_vec[i]->send_ring == nullptr)
+		args_vec[i]->ring1_2 = rte_ring_create(PRI_2_SEC.c_str(), ring_size, rte_socket_id(), 0);
+		if (args_vec[i]->ring1_2 == nullptr)
 		{
 			spdlog::error("malloc ring failed");
 			return -1;
 		}
-		spdlog::info("try to malloc mempool:{}", i);
-		args_vec[i]->send_pool = rte_mempool_create(args_vec[i]->_MSG_POOL.c_str(), pool_size, STR_TOKEN_SIZE, pool_cache, priv_data_sz, NULL, NULL, NULL, NULL, rte_socket_id(), flags);
+		spdlog::info("try to malloc pool:{}", i);
+		args_vec[i]->send_pool = rte_mempool_create(_MSG_POOL.c_str(), pool_size, STR_TOKEN_SIZE, pool_cache, priv_data_sz, NULL, NULL, NULL, NULL, rte_socket_id(), flags);
 		if (args_vec[i]->send_pool == nullptr)
 		{
 			spdlog::error("malloc mempool failed:{}", i);
