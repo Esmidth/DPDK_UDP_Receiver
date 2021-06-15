@@ -141,6 +141,7 @@ void secondary_thread_bulk()
         // std::this_thread::sleep_for(std::chrono::seconds(1));
     }
     printf("run: %d\n", i);
+    printf("OPS: %d\n", i/30);
 }
 
 void third_thread_bulk()
