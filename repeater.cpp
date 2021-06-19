@@ -11,14 +11,17 @@
 #include <bitset>
 
 #define APP_ID_RING_SIZE 128
+#define DATA_RING_COUNT 128
 
 typedef std::unordered_map<unsigned int, std::bitset<16>> int_bitset_map;
 typedef std::unordered_map<unsigned int, std::vector<unsigned int>> int_vector_map;
 typedef std::unordered_map<unsigned int, std::vector<rte_ring *>> int_vector_ring_map;
+typedef std::unordered_map<unsigned int, rte_ring *> int_ring_map;
 
 int print_map(int_vector_map &map)
 {
     printf("--------\n");
+    printf("int_vector_map\n");
     for (auto &n : map)
     {
         for (auto &t : n.second)
@@ -26,15 +29,31 @@ int print_map(int_vector_map &map)
             printf("key: %d\tValue:%d\n", n.first, t);
         }
     }
+    printf("xxxxxxxxx\n");
 }
 
 int print_map(int_bitset_map &map)
 {
     printf("--------\n");
+    printf("int_bitset_map\n");
     for (auto &n : map)
     {
         std::cout << "key: " << n.first << "\tValue:" << n.second << std::endl;
     }
+    printf("xxxxxxxxx\n");
+
+}
+
+int print_map(int_vector_ring_map& map)
+{
+    printf("--------\n");
+    printf("int_vector_ring_map\n");
+    for(auto& item:map)
+    {
+        printf("channel_id: %d, size: %d\n",item.first, item.second.size());
+    }
+    printf("xxxxxxxxx\n");
+
 }
 
 rte_ring *app_id_ring = nullptr;
@@ -64,9 +83,16 @@ class Route_Table
 public:
     int_bitset_map dhsm_channel_map;
     int_vector_map channel_dhsm_map;
+    int_ring_map dhsm_res_ring_map;            // aka communication ring which sending dhsm_res_message
     int_vector_ring_map channel_dhsm_ring_map; // aka route
 
     std::bitset<16> channel_sum;
+
+    // RES_RING_<DHSM_ID>
+    std::string res_ring_template = "RES_RING_";
+    std::string data_ring_template = "RING_DATA_";
+
+    rte_mempool* data_pool;
 
     Route_Table()
     {
@@ -74,12 +100,38 @@ public:
         this->channel_dhsm_map.clear();
         this->channel_sum = 0x0000;
         this->channel_dhsm_ring_map.clear();
+
+
+        this->data_pool = rte_mempool_create("DATA_MEMPOOL",2048,65000,128,0,nullptr,nullptr,nullptr,nullptr,rte_socket_id(),0);
     }
 
-
-    int send_return_msg(DHSM_MESSAGE* msg_ptr)
+    int send_return_msg(DHSM_MESSAGE *msg_ptr)
     {
+        if (msg_ptr == nullptr)
+        {
+            return 0;
+        }
 
+        if (!(msg_ptr->channel_id >= 0 && msg_ptr->channel_id < 16))
+        {
+            return 0;
+        }
+
+        if (this->dhsm_res_ring_map.find(msg_ptr->dhsm_id) == this->dhsm_res_ring_map.end())
+        {
+            // not exist
+            std::string tmp = this->res_ring_template + std::to_string(msg_ptr->channel_id);
+            // std::cout << "tmp " << tmp << std::endl;
+
+            this->dhsm_res_ring_map[msg_ptr->dhsm_id] = rte_ring_create(tmp.c_str(), APP_ID_RING_SIZE, rte_socket_id(), 0);
+        }
+        else
+        {
+            // exist
+        }
+
+        rte_ring_enqueue(this->dhsm_res_ring_map[msg_ptr->dhsm_id], NULL);
+        return 1;
     }
 
     int generate_map1(DHSM_MESSAGE *msg_ptr)
@@ -199,6 +251,7 @@ public:
         }
 
         this->channel_dhsm_ring_map.clear();
+        return 1;
     }
 
     int generate_ring()
@@ -206,13 +259,27 @@ public:
         //generate the new route
         for (auto &item : this->channel_dhsm_map)
         {
-            // item.first == channel_id 
-            // item.second = std::vector< dhsm_id > 
-            printf("channel_id: %d\t",item.first);
-            for(auto & sub_item : item.second)
+            // item.first == channel_id
+            // item.second = std::vector< dhsm_id >
+            printf("channel_id: %d\t", item.first);
+            for (auto &sub_item : item.second)
             {
-                printf("dhsm_id: %d,",sub_item);
-                // RING_CHANNELID_DHSMID
+                printf("dhsm_id: %d,", sub_item);
+
+                std::string tmp = this->data_ring_template + "C"+std::to_string(item.first) + "_" + "D"+std::to_string(sub_item);
+
+                std::cout << tmp;
+
+                this->channel_dhsm_ring_map[item.first].emplace_back(rte_ring_create(tmp.c_str(),DATA_RING_COUNT, rte_socket_id(),0));
+
+                // RING_DATA_C<CHANNELID>_D<DHSMID>
+                // RING_DATA_C1_D2
+
+                // DHSM_MESSAGE{1,5}
+                // RING_DATA_C5_D1
+
+                // POOL_DATA_C<CHANNEL_ID>
+                // POOL_DATA_C5
             }
             printf("\n");
         }
@@ -221,14 +288,20 @@ public:
     int handle_msg(DHSM_MESSAGE *msg_ptr)
     {
         // stop the repeater lcore
+
         int ret;
+        // ret = send_return_msg(msg_ptr);
         ret = generate_map1(msg_ptr);
         generate_map2();
         free_ring();
         generate_ring();
-        return ret;
+
+        // send conf to lcore
 
         // start the repeater lcore
+
+
+        return ret;
     }
 };
 
@@ -267,7 +340,7 @@ void thread1()
         printf("----\n");
         // print_map(rt.channel_dhsm_map);
         // printf("----\n");
-
+        print_map(rt.channel_dhsm_ring_map);
 
         // std::cout << "dhsm id: " << tmp1->dhsm_id << "\tchannel_id: " << tmp1->channel_id  << "\tflag: "<< tmp1->flag<< std::endl;
         printf("dhsm id:%d\tchannel_id:%d\tflag:%d\n", tmp1->dhsm_id, tmp1->channel_id, tmp1->flag);
