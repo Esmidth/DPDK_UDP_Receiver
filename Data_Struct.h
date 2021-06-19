@@ -177,8 +177,8 @@ struct Thread_arg
     udpFramesPool_1460 *local_UDPFramePool;
     // std::queue<int> frame_queue;
     // std::queue<int> queue_to_send;
-    moodycamel::ConcurrentQueue<int> mem_queue;
-    moodycamel::ConcurrentQueue<int> frame_queue;
+    // moodycamel::ConcurrentQueue<int> mem_queue;
+    // moodycamel::ConcurrentQueue<int> frame_queue;
     moodycamel::ConcurrentQueue<int> queue_to_send;
 
     //FILE POINTER
@@ -246,6 +246,12 @@ struct Thread_arg
         this->mis_msg = 0;
         this->last_count = 0;
         this->last_forward = 0;
+        #ifdef RING
+        this->send_pool = nullptr;
+        this->ring1_2 = nullptr;
+        this->ring2_3 = nullptr;
+        this->ring3_4 = nullptr;
+        #endif
     }
 };
 

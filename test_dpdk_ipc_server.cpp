@@ -46,12 +46,6 @@ std::atomic<bool> run(true);
 std::atomic<bool> ring_create(false);
 
 
-class Message{
-    int app_id;
-    int bitmask;
-    int time;
-};
-
 #define TESTTIME 30
 
 #define BULK_SIZE 1
@@ -97,7 +91,7 @@ void secondary_thread()
             printf("send:%s\n", msg);
         }
         i++;
-        std::this_thread::sleep_for(std::chrono::seconds(1));
+        // std::this_thread::sleep_for(std::chrono::seconds(1));
     }
     printf("run: %d\n", i);
 }
@@ -107,9 +101,9 @@ void secondary_thread_bulk()
     send_ring = rte_ring_create(PRI_2_SEC, ring_size, rte_socket_id(), 0);
     // send_pool = rte_mempool_create(_MSG_POOL, pool_size, STR_TOKEN_SIZE, pool_cache, priv_data_sz, NULL, NULL, NULL, NULL,rte_socket_id(),flags);
     // send_pool = rte_mempool_create(_MSG_POOL, pool_size,
-    //    STR_TOKEN_SIZE, pool_cache, priv_data_sz,
-    //    NULL, NULL, NULL, NULL,
-    //    rte_socket_id(), flags);
+                                //    STR_TOKEN_SIZE, pool_cache, priv_data_sz,
+                                //    NULL, NULL, NULL, NULL,
+                                //    rte_socket_id(), flags);
     // start = true;
     // std::string send_template = "hello";
     unsigned long i = 0;
@@ -127,14 +121,14 @@ void secondary_thread_bulk()
         // printf("1\n");
         // if (rte_mempool_get_bulk(send_pool, (void **)msg, BULK_SIZE) < 0)
         // {
-        // rte_panic("Fail to get message buffer\n");
+            // rte_panic("Fail to get message buffer\n");
         // }
         // printf("1.5\n");
         for (int i = 0; i < BULK_SIZE; i++)
         {
             // tmp = send_template + std::to_string(i);
             // strlcpy((char *)msg + i, (tmp.c_str()), STR_TOKEN_SIZE);
-            *((char *)msg + i) = i;
+            *((char*)msg+i) = i;
         }
         // printf("2\n");
 
@@ -151,7 +145,7 @@ void secondary_thread_bulk()
         // std::this_thread::sleep_for(std::chrono::seconds(1));
     }
     printf("run: %lu\n", i);
-    printf("OPS: %lu\n", i / TESTTIME);
+    printf("OPS: %lu\n", i/TESTTIME);
 }
 
 void third_thread_bulk()
@@ -228,7 +222,7 @@ void third_thread()
             continue;
         }
         // int recv = *(int*)tmp;
-        printf("recv:%s\n-----\n", (char *)tmp);
+        // printf("recv:%s\n-----\n", (char *)tmp);
 
         rte_mempool_put(send_pool, tmp);
 
@@ -283,8 +277,13 @@ int main(int argc, char **argv)
 {
     int ret;
     ret = rte_eal_init(argc, argv);
+
+//     rte_ring* send_ring = rte_ring_create("TEST1",10000,rte_socket_id(),0);
+//     rte_mempool* send_pool = rte_mempool_create("TEST2",10000,)
+
+
     std::thread t1(secondary_thread);
-    std::thread t2(third_thread);
+//     std::thread t2(third_thread_bulk);
     // start = true;
 
     cpu_set_t mask;
@@ -292,11 +291,14 @@ int main(int argc, char **argv)
     CPU_SET(1, &mask);
     pthread_setaffinity_np(t1.native_handle(), sizeof(cpu_set_t), &mask);
 
-    CPU_ZERO(&mask);
-    CPU_SET(2, &mask);
-    pthread_setaffinity_np(t2.native_handle(), sizeof(cpu_set_t), &mask);
-    std::this_thread::sleep_for(std::chrono::seconds(1));
+//     CPU_ZERO(&mask);
+//     CPU_SET(2, &mask);
+//     pthread_setaffinity_np(t2.native_handle(), sizeof(cpu_set_t), &mask);
+//     std::this_thread::sleep_for(std::chrono::seconds(1));
+    std::this_thread::sleep_for(std::chrono::seconds(5));
     start = true;
+    printf("START!!\n");
+
     run = true;
     std::this_thread::sleep_for(std::chrono::seconds(TESTTIME));
 

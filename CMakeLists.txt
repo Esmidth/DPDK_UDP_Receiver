@@ -39,12 +39,50 @@ target_link_libraries(server_cmake spdlog::spdlog)
 target_link_libraries(server_cmake /usr/lib/libpulsar.so /usr/lib/libpulsarnossl.so)
 
 
+include_directories(${xxx_include_dirs})
+add_executable(repeater repeater.cpp Data_Struct.h Functions.h common.h concurrentqueue.h)
+target_link_libraries(repeater cppzmq)
+target_link_libraries(repeater fmt::fmt)
+target_link_libraries(repeater ${xxx_libraries})
+target_link_libraries(repeater ${DPDK_LIBS})
+target_link_libraries(repeater pthread dl rt numa crypto pcap)
+target_link_libraries(repeater spdlog::spdlog)
+target_link_libraries(repeater /usr/lib/libpulsar.so /usr/lib/libpulsarnossl.so)
+
+
 add_executable(test_dpdk_ring test_dpdk_ring.cpp)
 target_link_libraries(test_dpdk_ring cppzmq)
 target_link_libraries(test_dpdk_ring fmt::fmt)
 target_link_libraries(test_dpdk_ring ${DPDK_LIBS})
 target_link_libraries(test_dpdk_ring pthread dl rt numa crypto pcap)
 target_link_libraries(test_dpdk_ring spdlog::spdlog)
+
+
+add_executable(test_dpdk_ipc_client test_dpdk_ipc_client.cpp)
+target_link_libraries(test_dpdk_ipc_client cppzmq)
+target_link_libraries(test_dpdk_ipc_client fmt::fmt)
+target_link_libraries(test_dpdk_ipc_client ${DPDK_LIBS})
+target_link_libraries(test_dpdk_ipc_client pthread dl rt numa crypto pcap)
+target_link_libraries(test_dpdk_ipc_client spdlog::spdlog)
+
+add_executable(test_dpdk_ipc_server test_dpdk_ipc_server.cpp)
+target_link_libraries(test_dpdk_ipc_server cppzmq)
+target_link_libraries(test_dpdk_ipc_server fmt::fmt)
+target_link_libraries(test_dpdk_ipc_server ${DPDK_LIBS})
+target_link_libraries(test_dpdk_ipc_server pthread dl rt numa crypto pcap)
+target_link_libraries(test_dpdk_ipc_server spdlog::spdlog)
+
+add_executable(test_thread_affinity_c thread_affinity_c.cpp)
+target_link_libraries(test_thread_affinity_c pthread)
+
+add_executable(test_thread_affinity thread_affinity.cpp)
+target_link_libraries(test_thread_affinity pthread)
+
+add_executable(test_handler test_handler.cpp)
+
+
+add_executable(test_unordered_map test_unorder_map.cpp)
+
 
 #add_executable(test_dpdk_timer test_dpdk_timer.cpp)
 #target_link_libraries(test_dpdk_timer cppzmq)

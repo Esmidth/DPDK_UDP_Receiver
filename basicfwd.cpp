@@ -24,8 +24,8 @@ const unsigned priv_data_sz = 0;
 
 #ifdef VM
 const unsigned flags = 0;
-const unsigned ring_size = 4096;
-const unsigned pool_size = 4096;
+const unsigned ring_size = 1024;
+const unsigned pool_size = 1024;
 const unsigned pool_cache = 320;
 const unsigned priv_data_sz = 0;
 #endif
@@ -268,7 +268,7 @@ lcore_main(void *arg)
 		// 		bufs, nb_rx);
 		const uint16_t nb_tx = 0;
 
-		//TODO: remove free packets here and add to DOB thread
+		//TODO: remove free packets here and add tao DOB thread
 		/* Free any unsent packets. */
 		if (unlikely(nb_tx < nb_rx))
 		{
@@ -588,10 +588,12 @@ void consumer_thread(Thread_arg *sub)
 							}
 						}
 						pUDPFrameIndex->pUDPFrame[frameSeq]->packetNum = PACK_NUM;
+						pUDPFrameIndex->pUDPFrame[frameSeq]->frameSeq = frameSeq;
 						// pUDPFrameIndex->pUDPFrame[frameSeq]->packetNum = packet_ptr->packetNum;
-						sub->frame_queue.enqueue(frameSeq);
-						
+						// sub->frame_queue.enqueue(frameSeq);
+
 						//TODO: switch rte_ring from lockless queue
+						rte_ring_enqueue(sub->ring2_3, pUDPFrameIndex->pUDPFrame[frameSeq]);
 					}
 					else
 					{
@@ -640,85 +642,123 @@ void align_thread(Thread_arg *sub)
 	uint64_t prev_tsc = 0, cur_tsc, diff_tsc;
 
 	spdlog::warn("ALIGN_INIT");
+	void *tmpp;
+	udpFrame_1460 *udpFrame_ptr = nullptr;
 	while (1)
 	{
 		// printf("empty: %d\n",!sub->frame_queue.empty());
 
-		if (sub->frame_queue.try_dequeue(id))
+		if (rte_ring_dequeue(sub->ring2_3, &tmpp) < 0)
 		{
-			// id = sub->frame_queue.front();
-			// async_file1->warn("try_dequeue:{}", id);
-
-			if (sub->local_UDPFrameIndex->pUDPFrame[id] != NULL)
-			{
-				cur_tsc = rte_rdtsc();
-				prev_tsc = cur_tsc;
-				// printf("NOT NULL\n");
-				// printf("CURRENT COUNT: %d\n",sub->local_UDPFrameIndex->pUDPFrame[id]->count);
-				//     printf("current_pack_num: %d\n",sub->local_UDPFrameIndex->pUDPFrame[id]->count);
-				while (sub->local_UDPFrameIndex->pUDPFrame[id]->count != sub->local_UDPFrameIndex->pUDPFrame[id]->packetNum)
-				{
-#ifdef DROP
-					cur_tsc = rte_rdtsc();
-					diff_tsc = cur_tsc - prev_tsc;
-					if (diff_tsc > TIMER_RESOLUTION_CYCLES * 10)
-					{
-						sub->drop_count++;
-						drop = true;
-						break;
-					}
-					// sub->local_UDPFrameIndex->pUDPFrame[id]->count = 0;
-					// sub->local_UDPFrameIndex->pUDPFrame[id] = nullptr;
-					// break;
-					// if (sec - last_sec > 0.01)
-					// {
-
-					// }
-#endif
-// if (sub->frame_queue.try_pop(id))
-// {
-// sub->queue_to_send.push(id);
-// }
-// printf("%d: queue_to_send: %lu | frame_queue: %lu\n", sub->id, sub->queue_to_send.size(),sub->frame_queue.size());
-
-// char *tmppp = (char *)malloc(sizeof(char)*1000);
-// sprintf(tmppp, "%d: queue_to_send: %lu | frame_queue: %lu\n", sub->id, sub->queue_to_send.size(),sub->frame_queue.size());
-// simple_log("thread_align.txt", tmppp);
-// free(tmppp);
-// spdlog::info("head count: {}",sub->local_UDPFrameIndex->pUDPFrame[id]->count);
-#ifdef LOG
-					sub->async_log2->info("queue head:{}, count:{}", id, sub->local_UDPFrameIndex->pUDPFrame[id]->count);
-#endif
-					std::this_thread::yield();
-				}
-
-#ifdef DROP
-
-				if (drop)
-				{
-					for (int i = 0; i < 44; i++)
-					{
-						if (sub->local_UDPFrameIndex->pUDPFrame[id]->flags[i] == false)
-						{
-							memset(sub->local_UDPFrameIndex->pUDPFrame[id]->data[i], 0, DATA_LENGTH);
-						}
-					}
-					drop = false;
-				}
-#endif
-
-				sub->align_num++;
-				sub->queue_to_send.enqueue(id);
-
-				// async_file1->warn("queue_to_send| enqueue: {}", id);
-				// std::this_thread::sleep_for(std::chrono::milliseconds(1));
-			}
+			continue;
 		}
-		else
+		udpFrame_ptr = (udpFrame_1460 *)tmpp;
+
+		if (udpFrame_ptr != nullptr)
 		{
-			std::this_thread::yield();
+			cur_tsc = rte_rdtsc();
+			prev_tsc = cur_tsc;
+			while (udpFrame_ptr->count != udpFrame_ptr->packetNum)
+			{
+#ifdef DROP
+				cur_tsc = rte_rdtsc();
+				diff_tsc = cur_tsc - prev_tsc;
+				if (diff_tsc > TIMER_RESOLUTION_CYCLES * 10)
+				{
+					sub->drop_count++;
+					drop = true;
+					break;
+				}
+				// sub->local_UDPFrameIndex->pUDPFrame[id]->count = 0;
+				// sub->local_UDPFrameIndex->pUDPFrame[id] = nullptr;
+				// break;
+				// if (sec - last_sec > 0.01)
+				// {
+
+				// }
+#endif
+#ifdef LOG
+				sub->async_log2->info("queue head:{}, count:{}", id, sub->local_UDPFrameIndex->pUDPFrame[id]->count);
+#endif
+				std::this_thread::yield();
+			}
+
+			// 		if (sub->frame_queue.try_dequeue(id))
+			// 		{
+			// 			// id = sub->frame_queue.front();
+			// 			// async_file1->warn("try_dequeue:{}", id);
+
+			// 			if (sub->local_UDPFrameIndex->pUDPFrame[id] != NULL)
+			// 			{
+			// 				cur_tsc = rte_rdtsc();
+			// 				prev_tsc = cur_tsc;
+			// 				// printf("NOT NULL\n");
+			// 				// printf("CURRENT COUNT: %d\n",sub->local_UDPFrameIndex->pUDPFrame[id]->count);
+			// 				//     printf("current_pack_num: %d\n",sub->local_UDPFrameIndex->pUDPFrame[id]->count);
+			// 				while (sub->local_UDPFrameIndex->pUDPFrame[id]->count != sub->local_UDPFrameIndex->pUDPFrame[id]->packetNum)
+			// 				{
+			// #ifdef DROP
+			// 					cur_tsc = rte_rdtsc();
+			// 					diff_tsc = cur_tsc - prev_tsc;
+			// 					if (diff_tsc > TIMER_RESOLUTION_CYCLES * 10)
+			// 					{
+			// 						sub->drop_count++;
+			// 						drop = true;
+			// 						break;
+			// 					}
+			// 					// sub->local_UDPFrameIndex->pUDPFrame[id]->count = 0;
+			// 					// sub->local_UDPFrameIndex->pUDPFrame[id] = nullptr;
+			// 					// break;
+			// 					// if (sec - last_sec > 0.01)
+			// 					// {
+
+			// 					// }
+			// #endif
+			// // if (sub->frame_queue.try_pop(id))
+			// // {
+			// // sub->queue_to_send.push(id);
+			// // }
+			// // printf("%d: queue_to_send: %lu | frame_queue: %lu\n", sub->id, sub->queue_to_send.size(),sub->frame_queue.size());
+
+			// // char *tmppp = (char *)malloc(sizeof(char)*1000);
+			// // sprintf(tmppp, "%d: queue_to_send: %lu | frame_queue: %lu\n", sub->id, sub->queue_to_send.size(),sub->frame_queue.size());
+			// // simple_log("thread_align.txt", tmppp);
+			// // free(tmppp);
+			// // spdlog::info("head count: {}",sub->local_UDPFrameIndex->pUDPFrame[id]->count);
+			// #ifdef LOG
+			// 					sub->async_log2->info("queue head:{}, count:{}", id, sub->local_UDPFrameIndex->pUDPFrame[id]->count);
+			// #endif
+			// 					std::this_thread::yield();
+			// 				}
+
+#ifdef DROP
+
+			if (drop)
+			{
+				for (int i = 0; i < 44; i++)
+				{
+					if (sub->local_UDPFrameIndex->pUDPFrame[id]->flags[i] == false)
+					{
+						memset(sub->local_UDPFrameIndex->pUDPFrame[id]->data[i], 0, DATA_LENGTH);
+					}
+				}
+				drop = false;
+			}
+#endif
+
+			sub->align_num++;
+			// sub->queue_to_send.enqueue(id);
+			rte_ring_enqueue(sub->ring3_4, udpFrame_ptr);
+
+			// async_file1->warn("queue_to_send| enqueue: {}", id);
+			// std::this_thread::sleep_for(std::chrono::milliseconds(1));
 		}
 	}
+	// else
+	// {
+	// 	std::this_thread::yield();
+	// }
+	//}
 }
 
 void send_to_pulsar(void *arg)
@@ -800,60 +840,69 @@ void send_to_pulsar(void *arg)
 	Message msg;
 
 	sub->send_thread_init = true;
+
+	udpFrame_1460 *udpFrame_ptr = nullptr;
+
 	while (true)
 	{
-
-		if (sub->queue_to_send.try_dequeue(send_id))
+		if (rte_ring_dequeue(sub->ring3_4, (void **)&udpFrame_ptr))
 		{
-			// spdlog::info("INTO KAZE INIT PROCEDURE");
-			// spdlog::warn("FUCKING NULL");
-			memset(tmp, 0, MESSAGE_LENGTH + 2);
+			continue;
+		}
+		memset(tmp, 0, MESSAGE_LENGTH + 2);
 // async_file1->warn("delete:{}", send_id);
 #ifdef LOG
-			sub->async_log2->info("sent:{}", send_id);
+		sub->async_log2->info("sent:{}", send_id);
 #endif
-			// spdlog::warn("delete:{} ", send_id);,send_id
+		// spdlog::warn("delete:{} ", send_id);,send_id
 
-			// memcpy(tmp + 2, sub->local_UDPFrameIndex->pUDPFrame[send_id]->data,
-			//        sizeof(byte) * PACK_NUM * DATA_LENGTH);
-			// spdlog::info("START KAZE INIT MEMCPY");
+		// memcpy(tmp + 2, sub->local_UDPFrameIndex->pUDPFrame[send_id]->data,
+		//        sizeof(byte) * PACK_NUM * DATA_LENGTH);
+		// spdlog::info("START KAZE INIT MEMCPY");
 
-			memcpy(tmp + 2, sub->local_UDPFrameIndex->pUDPFrame[send_id]->data,
-				   MESSAGE_LENGTH);
+		memcpy(tmp + 2, udpFrame_ptr->data,
+			   MESSAGE_LENGTH);
 #ifdef FAKE_DATA
-			memcpy(tmp + 2 + 29, data1,
-				   MESSAGE_LENGTH - 29);
+		memcpy(tmp + 2 + 29, data1,
+			   MESSAGE_LENGTH - 29);
 #endif
-			// spdlog::info("DONE KAZE INIT MEMCPY");
-			memcpy(tmp, &send_id, sizeof(unsigned short));
-			memcpy(&timeflag, tmp + 26, sizeof(int));
+		// spdlog::info("DONE KAZE INIT MEMCPY");
+		memcpy(tmp, &send_id, sizeof(unsigned short));
+		memcpy(&timeflag, tmp + 26, sizeof(int));
 
 #ifdef LOG
-			sub->async_log3->info("init sent timeflag:{}", timeflag);
+		sub->async_log3->info("init sent timeflag:{}", timeflag);
 #endif
-			// last_timeflag = timeflag;
-			last_timeflag = (timeflag + 1000) % 5600000;
-			// async_file2->error("timeflag:{}", timeflag);
-			//                memcpy(tmp,sub->local_UDPFrameIndex)
+		// last_timeflag = timeflag;
+		last_timeflag = (timeflag + 1000) % 5600000;
+		// async_file2->error("timeflag:{}", timeflag);
+		//                memcpy(tmp,sub->local_UDPFrameIndex)
 
-			// spdlog::info("KAZE INIT MESG BUILD");
-			msg = MessageBuilder().setContent(tmp, MESSAGE_LENGTH + 2).build();
+		// spdlog::info("KAZE INIT MESG BUILD");
+		msg = MessageBuilder().setContent(tmp, MESSAGE_LENGTH + 2).build();
 #ifdef SEND
-			// producer.sendAsync(msg, NULL);
+		// producer.sendAsync(msg, NULL);
 #endif
-			// producer.send(msg);
-			sub->local_UDPFrameIndex->pUDPFrame[send_id]->count = 0;
-			memset(sub->local_UDPFrameIndex->pUDPFrame[send_id]->flags, 0, PACK_NUM);
-			// memset(sub->local_UDPFrameIndex->pUDPFrame[send_id],0,sizeof(udpFrame_1460));
-			sub->local_UDPFrameIndex->pUDPFrame[send_id] = nullptr;
-
-			sub->sent_frame++;
-
-			// printf("pulsar: ->%d: sent frame # %d | total sent: %d\n", sub->id, send_id, sent_frames.load());
-
-			// sub->queue_to_send.try_pop(send_id);
-			break;
+		// producer.send(msg);
+		// sub->local_UDPFrameIndex->pUDPFrame[send_id]->count = 0;
+		// spdlog::info("frameSeq:{}",udpFrame_ptr->frameSeq);
+		udpFrame_ptr->count = 0;
+		memset(udpFrame_ptr->flags, 0, PACK_NUM);
+		// memset(sub->local_UDPFrameIndex->pUDPFrame[send_id]->flags, 0, PACK_NUM);
+		// memset(sub->local_UDPFrameIndex->pUDPFrame[send_id],0,sizeof(udpFrame_1460));
+		// udpFrame_ptr = nullptr;
+		// sub->local_UDPFrameIndex->pUDPFrame[send_id] = nullptr;
+		if (sub->local_UDPFrameIndex->pUDPFrame[udpFrame_ptr->frameSeq] != nullptr)
+		{
+			sub->local_UDPFrameIndex->pUDPFrame[udpFrame_ptr->frameSeq] = nullptr;
 		}
+
+		sub->sent_frame++;
+
+		// printf("pulsar: ->%d: sent frame # %d | total sent: %d\n", sub->id, send_id, sent_frames.load());
+
+		// sub->queue_to_send.try_pop(send_id);
+		// break;
 	}
 
 	// int i = 0;
@@ -1008,7 +1057,8 @@ void timer_thread(std::vector<Thread_arg *> *args_vec)
 #endif
 #ifdef DEBUG_DISPLAY
 
-			spdlog::info("C{11}:Sec:{0:.1f}, align num: {1} ,Sent Frames: {2}, Forward Packets: {3}, queue1:{4}, queue2:{5}, queue3:{6}, global_count:{7}, mis:{8}, mis_msg:{9}, Speed:{10:.2f}", sec, (*args_vec)[i]->align_num, (*args_vec)[i]->sent_frame, (*args_vec)[i]->forward_packet, (*args_vec)[i]->mem_queue.size_approx(), (*args_vec)[i]->frame_queue.size_approx(), (*args_vec)[i]->queue_to_send.size_approx(), (*args_vec)[i]->global_count, (*args_vec)[i]->mis, (*args_vec)[i]->mis_msg, diff_count * 0.00001123046875 / TIME_STAMP, i);
+			// spdlog::info("C{11}:Sec:{0:.1f}, align num: {1} ,Sent Frames: {2}, Forward Packets: {3}, queue1:{4}, queue2:{5}, queue3:{6}, global_count:{7}, mis:{8}, mis_msg:{9}, Speed:{10:.2f}", sec, (*args_vec)[i]->align_num, (*args_vec)[i]->sent_frame, (*args_vec)[i]->forward_packet, (*args_vec)[i]->mem_queue.size_approx(), (*args_vec)[i]->frame_queue.size_approx(), (*args_vec)[i]->queue_to_send.size_approx(), (*args_vec)[i]->global_count, (*args_vec)[i]->mis, (*args_vec)[i]->mis_msg, diff_count * 0.00001123046875 / TIME_STAMP, i);
+			spdlog::info("C{11}:Sec:{0:.1f}, align num: {1} ,Sent Frames: {2}, Forward Packets: {3}, queue1:{4}, queue2:{5}, queue3:{6}, global_count:{7}, mis:{8}, mis_msg:{9}, Speed:{10:.2f}", sec, (*args_vec)[i]->align_num, (*args_vec)[i]->sent_frame, (*args_vec)[i]->forward_packet, rte_ring_count((*args_vec)[i]->ring1_2), rte_ring_count((*args_vec)[i]->ring2_3), rte_ring_count((*args_vec)[i]->ring3_4), (*args_vec)[i]->global_count, (*args_vec)[i]->mis, (*args_vec)[i]->mis_msg, diff_count * 0.00001123046875 / TIME_STAMP, i);
 
 #endif
 #endif
@@ -1124,6 +1174,27 @@ int main(int argc, char *argv[])
 			spdlog::error("malloc ring failed");
 			return -1;
 		}
+
+		PRI_2_SEC = "PRI_2_SEC_1" + std::to_string(i);
+		// _MSG_POOL = "MSG_POOL_1" + std::to_string(i);
+		spdlog::info("try to malloc ring2:{}", i);
+		args_vec[i]->ring2_3 = rte_ring_create(PRI_2_SEC.c_str(), ring_size, rte_socket_id(), 0);
+		if (args_vec[i]->ring2_3 == nullptr)
+		{
+			spdlog::error("malloc ring failed");
+			return -1;
+		}
+
+		PRI_2_SEC = "PRI_2_SEC_2" + std::to_string(i);
+		// _MSG_POOL = "MSG_POOL" + std::to_string(i);
+		spdlog::info("try to malloc ring3:{}", i);
+		args_vec[i]->ring3_4 = rte_ring_create(PRI_2_SEC.c_str(), ring_size, rte_socket_id(), 0);
+		if (args_vec[i]->ring3_4 == nullptr)
+		{
+			spdlog::error("malloc ring failed");
+			return -1;
+		}
+
 		spdlog::info("try to malloc pool:{}", i);
 		args_vec[i]->send_pool = rte_mempool_create(_MSG_POOL.c_str(), pool_size, STR_TOKEN_SIZE, pool_cache, priv_data_sz, NULL, NULL, NULL, NULL, rte_socket_id(), flags);
 		if (args_vec[i]->send_pool == nullptr)
