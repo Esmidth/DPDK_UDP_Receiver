@@ -12,10 +12,16 @@ int print_map(int_vector_map &map)
 	printf("--------\n");
 	for (auto &n : map)
 	{
-		for (auto &t : n.second)
+		// for (auto &t : n.second)
+		// {
+		// 	printf("key: %d\tValue:%d\n", n.first, t);
+		// }
+		printf("key: %d\t",n.first);
+		for(int i = 0;i<n.second.size();i++)
 		{
-			printf("key: %d\tValue:%d\n", n.first, t);
+			printf("Value: %d, ",n.second[i]);
 		}
+		printf("\n");
 	}
 }
 
@@ -123,7 +129,55 @@ void exist_op()
 	}
 }
 
+
+void test_generate_map2()
+{
+	int_bitset_map map1;
+	int_vector_map map2;
+
+	map1[1] = 0x0001;
+	map1[2] = 0x0002;
+	map1[3] = 0xff01;
+
+
+	std::bitset<16> bit_sum = 0x0000;
+	for(auto & t:map1)
+	{
+		bit_sum = bit_sum | t.second;
+	}
+
+	print_map(map1);
+	std::cout << "bit_sum: " << bit_sum << std::endl;
+
+
+	for(int i = 0;i<16;i++)
+	{
+		if(bit_sum[i] == 1)
+		{
+			map2[i] = {};
+		}
+	}
+
+	for(auto & item: map1)
+	{
+		for(int i = 0;i<16;i++)
+		{
+			if(item.second[i] == 1)
+			{
+				map2[i].emplace_back(item.first);
+			}
+		}
+
+	}
+
+	print_map(map2);
+
+
+}
+
+
+
 int main()
 {
-	exist_op();
+	test_generate_map2();
 }

@@ -12,8 +12,9 @@
 
 #define APP_ID_RING_SIZE 128
 
-typedef std::unordered_map<int, std::bitset<16>> int_bitset_map;
-typedef std::unordered_map<int, std::vector<int>> int_vector_map;
+typedef std::unordered_map<unsigned int, std::bitset<16>> int_bitset_map;
+typedef std::unordered_map<unsigned int, std::vector<unsigned int>> int_vector_map;
+typedef std::unordered_map<unsigned int, std::vector<rte_ring *>> int_vector_ring_map;
 
 int print_map(int_vector_map &map)
 {
@@ -62,12 +63,23 @@ class Route_Table
 {
 public:
     int_bitset_map dhsm_channel_map;
-    int_bitset_map channel_dhsm_map;
+    int_vector_map channel_dhsm_map;
+    int_vector_ring_map channel_dhsm_ring_map; // aka route
 
-    std::unordered_map<int, std::vector<rte_ring *>> channel_dhsm_ring_map; // aka route
+    std::bitset<16> channel_sum;
 
     Route_Table()
     {
+        this->dhsm_channel_map.clear();
+        this->channel_dhsm_map.clear();
+        this->channel_sum = 0x0000;
+        this->channel_dhsm_ring_map.clear();
+    }
+
+
+    int send_return_msg(DHSM_MESSAGE* msg_ptr)
+    {
+
     }
 
     int generate_map1(DHSM_MESSAGE *msg_ptr)
@@ -132,16 +144,78 @@ public:
     int generate_map2()
     {
         // generate channel_dhsm_map from dhsm_channel_map
+        // int_bitset_map map1;
+        // int_vector_map map2;
+
+        // map1[1] = 0x0001;
+        // map1[2] = 0x0002;
+        // map1[3] = 0xff01;
+
+        // std::bitset<16> bit_sum = 0x0000;
+
+        //reset
+        this->channel_dhsm_map.clear();
+        this->channel_sum = 0x0000;
+
+        for (auto &t : this->dhsm_channel_map)
+        {
+            this->channel_sum = this->channel_sum | t.second;
+        }
+        // print_map(map1);
+        // std::cout << "bit_sum: " << bit_sum << std::endl;
+
+        for (int i = 0; i < 16; i++)
+        {
+            if (this->channel_sum[i] == 1)
+            {
+                this->channel_dhsm_map[i] = {};
+            }
+        }
+
+        for (auto &item : this->dhsm_channel_map)
+        {
+            for (int i = 0; i < 16; i++)
+            {
+                if (item.second[i] == 1)
+                {
+                    this->channel_dhsm_map[i].emplace_back(item.first);
+                }
+            }
+        }
+
+        // print_map(this->channel_dhsm_map);
+        return 1;
     }
 
     int free_ring()
     {
         //free all the ring in channel_dhsm_ring_map;
+        for (auto &item : this->channel_dhsm_ring_map)
+        {
+            for (auto sub_item : item.second)
+            {
+                rte_ring_free(sub_item);
+            }
+        }
+
+        this->channel_dhsm_ring_map.clear();
     }
 
     int generate_ring()
     {
         //generate the new route
+        for (auto &item : this->channel_dhsm_map)
+        {
+            // item.first == channel_id 
+            // item.second = std::vector< dhsm_id > 
+            printf("channel_id: %d\t",item.first);
+            for(auto & sub_item : item.second)
+            {
+                printf("dhsm_id: %d,",sub_item);
+                // RING_CHANNELID_DHSMID
+            }
+            printf("\n");
+        }
     }
 
     int handle_msg(DHSM_MESSAGE *msg_ptr)
@@ -149,10 +223,10 @@ public:
         // stop the repeater lcore
         int ret;
         ret = generate_map1(msg_ptr);
+        generate_map2();
+        free_ring();
+        generate_ring();
         return ret;
-        // generate_map2();
-        // free_ring();
-        // generate_ring();
 
         // start the repeater lcore
     }
@@ -190,6 +264,10 @@ void thread1()
         ret = rt.handle_msg(tmp1);
         printf("ret: %d\n", ret);
         print_map(rt.dhsm_channel_map);
+        printf("----\n");
+        // print_map(rt.channel_dhsm_map);
+        // printf("----\n");
+
 
         // std::cout << "dhsm id: " << tmp1->dhsm_id << "\tchannel_id: " << tmp1->channel_id  << "\tflag: "<< tmp1->flag<< std::endl;
         printf("dhsm id:%d\tchannel_id:%d\tflag:%d\n", tmp1->dhsm_id, tmp1->channel_id, tmp1->flag);
@@ -233,7 +311,7 @@ void thread2()
         rte_ring_enqueue(r1, tmp);
         std::this_thread::sleep_for(std::chrono::seconds(1));
         x++;
-        if(x == 16)
+        if (x == 16)
         {
             x = 0;
             y = !y;
