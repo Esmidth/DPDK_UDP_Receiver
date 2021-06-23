@@ -326,12 +326,13 @@ static int check_port_pair_config(void)
 void consumer_thread(Thread_arg *sub)
 {
 	udpFramesIndex65536_1460 *pUDPFrameIndex;
-	udpFramesPool_1460 *pUDPFramePool;
+	// udpFramesPool_1460 *pUDPFramePool;
 	// int offset;
 	unsigned char tmp[1472];
 	udpPacket_1460 *packet_ptr = nullptr;
 	pUDPFrameIndex = sub->local_UDPFrameIndex;
-	pUDPFramePool = sub->local_UDPFramePool;
+	udpFrame_1460 *tmp_udpFrame = nullptr;
+	// pUDPFramePool = sub->local_UDPFramePool;
 	// Thread_arg *sub = (Thread_arg *)arg;
 
 	unsigned short last_frameSeq = 0;
@@ -550,43 +551,59 @@ void consumer_thread(Thread_arg *sub)
 #ifdef GODOT
 					if (nullptr == pUDPFrameIndex->pUDPFrame[frameSeq])
 					{
+						rte_mempool_get(sub->local_udpFrameMempool, (void **)&tmp_udpFrame);
+
+						if(tmp_udpFrame == nullptr)
+						{
+							rte_panic("tmp_udpFrame == nullptr\n");
+						}
+
+
+						pUDPFrameIndex->pUDPFrame[frameSeq] = tmp_udpFrame;
+						tmp_udpFrame->count++;
+						rte_memcpy(pUDPFrameIndex->pUDPFrame[frameSeq]->data[packet_ptr->packetSeq], packet_ptr->data, packet_ptr->packetLen);
+
+#ifdef DROP
+						pUDPFrameIndex->pUDPFrame[frameSeq]->flags[packet_ptr->packetSeq] = true;
+#endif
+
 						// spdlog::info("pass 1");
-						if (pUDPFramePool->pUDPPacket[pUDPFramePool->currIndex].count == 0)
-						{
-							pUDPFrameIndex->pUDPFrame[frameSeq] = &(pUDPFramePool->pUDPPacket[pUDPFramePool->currIndex]);
-							// memset(pUDPFrameIndex->pUDPFrame[frameSeq],0,1464*44);
-							pUDPFramePool->pUDPPacket[pUDPFramePool->currIndex].count++;
+						// 						if (pUDPFramePool->pUDPPacket[pUDPFramePool->currIndex].count == 0)
+						// 						{
+						// 							pUDPFrameIndex->pUDPFrame[frameSeq] = &(pUDPFramePool->pUDPPacket[pUDPFramePool->currIndex]);
+						// 							// memset(pUDPFrameIndex->pUDPFrame[frameSeq],0,1464*44);
+						// 							pUDPFramePool->pUDPPacket[pUDPFramePool->currIndex].count++;
 
-							memcpy(pUDPFrameIndex->pUDPFrame[frameSeq]->data[packet_ptr->packetSeq], packet_ptr->data, packet_ptr->packetLen);
-// spdlog::info("MOD1");
-#ifdef DROP
-							pUDPFrameIndex->pUDPFrame[frameSeq]->flags[packet_ptr->packetSeq] = true;
-#endif
-							// spdlog::info("MOD2");
-						}
-						else
-						{
-							int i = 0;
-							for (i = 0; i < POOL_SIZE; i++)
-							{
+						// 							memcpy(pUDPFrameIndex->pUDPFrame[frameSeq]->data[packet_ptr->packetSeq], packet_ptr->data, packet_ptr->packetLen);
+						// // spdlog::info("MOD1");
+						// #ifdef DROP
+						// 							pUDPFrameIndex->pUDPFrame[frameSeq]->flags[packet_ptr->packetSeq] = true;
+						// #endif
+						// 							// spdlog::info("MOD2");
+						// 						}
+						// 						else
+						// 						{
+						// 							int i = 0;
+						// 							for (i = 0; i < POOL_SIZE; i++)
+						// 							{
 
-								if (pUDPFramePool->pUDPPacket[(pUDPFramePool->currIndex + i) % POOL_SIZE].count == 0)
-								{
-									// spdlog::info("INTO 2");
-									pUDPFramePool->currIndex = (pUDPFramePool->currIndex + i) % POOL_SIZE;
+						// 								if (pUDPFramePool->pUDPPacket[(pUDPFramePool->currIndex + i) % POOL_SIZE].count == 0)
+						// 								{
+						// 									// spdlog::info("INTO 2");
+						// 									pUDPFramePool->currIndex = (pUDPFramePool->currIndex + i) % POOL_SIZE;
 
-									pUDPFrameIndex->pUDPFrame[frameSeq] = &(pUDPFramePool->pUDPPacket[pUDPFramePool->currIndex]);
-									pUDPFramePool->pUDPPacket[pUDPFramePool->currIndex].count++;
+						// 									pUDPFrameIndex->pUDPFrame[frameSeq] = &(pUDPFramePool->pUDPPacket[pUDPFramePool->currIndex]);
+						// 									pUDPFramePool->pUDPPacket[pUDPFramePool->currIndex].count++;
 
-									// memset(pUDPFrameIndex->pUDPFrame[frameSeq],0,1464*44);
-									memcpy(pUDPFramePool->pUDPPacket[pUDPFramePool->currIndex].data[packet_ptr->packetSeq], packet_ptr->data, packet_ptr->packetLen);
-#ifdef DROP
-									pUDPFrameIndex->pUDPFrame[frameSeq]->flags[packet_ptr->packetSeq] = true;
-#endif
-									break;
-								}
-							}
-						}
+						// 									// memset(pUDPFrameIndex->pUDPFrame[frameSeq],0,1464*44);
+						// 									memcpy(pUDPFramePool->pUDPPacket[pUDPFramePool->currIndex].data[packet_ptr->packetSeq], packet_ptr->data, packet_ptr->packetLen);
+						// #ifdef DROP
+						// 									pUDPFrameIndex->pUDPFrame[frameSeq]->flags[packet_ptr->packetSeq] = true;
+						// #endif
+						// 									break;
+						// 								}
+						// 							}
+						// 						}
 						pUDPFrameIndex->pUDPFrame[frameSeq]->packetNum = PACK_NUM;
 						pUDPFrameIndex->pUDPFrame[frameSeq]->frameSeq = frameSeq;
 						// pUDPFrameIndex->pUDPFrame[frameSeq]->packetNum = packet_ptr->packetNum;
@@ -1100,7 +1117,7 @@ void dump(int signo)
 
 int main(int argc, char *argv[])
 {
-	signal(SIGSEGV, &dump);
+	// signal(SIGSEGV, &dump);
 
 	struct rte_mempool *mbuf_pool;
 	unsigned nb_ports;
@@ -1251,7 +1268,12 @@ int main(int argc, char *argv[])
 
 		spdlog::info("START TO ALLOCATE POOL & INDEX:{}", i);
 		args_vec[i]->local_UDPFrameIndex = new udpFramesIndex65536_1460();
-		args_vec[i]->local_UDPFramePool = new udpFramesPool_1460();
+		args_vec[i]->local_udpFrameMempool = rte_mempool_create("UDP_FRAME_MEM_POOL", 16384, sizeof(udpFrame_1460), 128, 0, NULL, NULL, NULL, NULL, rte_socket_id(), 0);
+		if(args_vec[i]->local_udpFrameMempool == nullptr)
+		{
+			rte_panic("MEMPOOL ALLOCATED FAILED\n");
+		}
+		// args_vec[i]->local_UDPFramePool = new udpFramesPool_1460();
 
 		// memset(args.local_UDPFramePool,0,sizeof(udpFramesPool_1460));
 		// memset(args.local_UDPFrameIndex,0,sizeof(udpFramesIndex65536_1460));

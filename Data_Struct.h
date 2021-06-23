@@ -36,7 +36,7 @@
 // #define QUEUE // using QUEUE version
 #define RING // using RING version
 // #define LOG // create log file
-#define DROP // drop frame
+// #define DROP // drop frame
 // #define FAKE_DATA // use fake data to overwrite true loads
 
 // #define VM
@@ -117,34 +117,34 @@ public:
     list_node *next_node;
 };
 
-struct udpFramesPool_1460
-{
-    unsigned int currIndex;
-    // std::atomic<unsigned int> currIndex;
-    struct udpFrame_1460 *pUDPPacket;
+// struct udpFramesPool_1460
+// {
+//     unsigned int currIndex;
+//     // std::atomic<unsigned int> currIndex;
+//     struct udpFrame_1460 *pUDPPacket;
 
-    udpFramesPool_1460()
-    {
-        this->currIndex = 0;
-        // this->pUDPPacket = (struct udpFrame_1460 *)malloc(POOL_SIZE * sizeof(struct udpFrame_1460));
-        this->pUDPPacket = (struct udpFrame_1460 *)rte_malloc(NULL, POOL_SIZE * sizeof(struct udpFrame_1460), 0);
-        // TODO: 使用mempool来代替手工维护的POOL
+//     udpFramesPool_1460()
+//     {
+//         this->currIndex = 0;
+//         // this->pUDPPacket = (struct udpFrame_1460 *)malloc(POOL_SIZE * sizeof(struct udpFrame_1460));
+//         this->pUDPPacket = (struct udpFrame_1460 *)rte_malloc(NULL, POOL_SIZE * sizeof(struct udpFrame_1460), 0);
+//         // TODO: 使用mempool来代替手工维护的POOL
 
-        if (this->pUDPPacket == nullptr)
-        {
-            spdlog::error("FRAME POOL FAILED");
-            return;
-        }
-        else
-        {
-            spdlog::info("FRAME POOL OK");
-        }
-    }
-    ~udpFramesPool_1460()
-    {
-        rte_free(this->pUDPPacket);
-    }
-};
+//         if (this->pUDPPacket == nullptr)
+//         {
+//             spdlog::error("FRAME POOL FAILED");
+//             return;
+//         }
+//         else
+//         {
+//             spdlog::info("FRAME POOL OK");
+//         }
+//     }
+//     ~udpFramesPool_1460()
+//     {
+//         rte_free(this->pUDPPacket);
+//     }
+// };
 
 struct udpFramesIndex65536_1460
 {
@@ -175,15 +175,17 @@ struct Thread_arg
     unsigned int id;
     // struct sockaddr_in* sockaddr_input;
     udpFramesIndex65536_1460 *local_UDPFrameIndex;
-    udpFramesPool_1460 *local_UDPFramePool;
-    // std::queue<int> frame_queue;
-    // std::queue<int> queue_to_send;
-    // moodycamel::ConcurrentQueue<int> mem_queue;
-    // moodycamel::ConcurrentQueue<int> frame_queue;
-    // moodycamel::ConcurrentQueue<int> queue_to_send;
+    rte_mempool *local_udpFrameMempool;
+        // udpFramesPool_1460 *local_UDPFramePool;
+        // std::queue<int> frame_queue;
+        // std::queue<int> queue_to_send;
+        // moodycamel::ConcurrentQueue<int> mem_queue;
+        // moodycamel::ConcurrentQueue<int> frame_queue;
+        // moodycamel::ConcurrentQueue<int> queue_to_send;
 
-    //FILE POINTER
-    std::shared_ptr<spdlog::logger> async_log1;
+        //FILE POINTER
+        std::shared_ptr<spdlog::logger>
+            async_log1;
     std::shared_ptr<spdlog::logger> async_log2;
     std::shared_ptr<spdlog::logger> async_log3;
     std::shared_ptr<spdlog::logger> store_log;
@@ -229,8 +231,9 @@ struct Thread_arg
     // ThreadSafe_Queue<int> queue_to_send;
     Thread_arg()
     {
-        this->local_UDPFramePool = nullptr;
+        // this->local_UDPFramePool = nullptr;
         this->local_UDPFrameIndex = nullptr;
+        this->local_udpFrameMempool = nullptr;
 
         this->sent_frame = 0;
         this->forward_packet = 0;
@@ -256,16 +259,16 @@ struct Thread_arg
     }
 };
 
-struct Send_arg
-{
-    udpFramesIndex65536_1460 **p_index;
-    udpFramesPool_1460 **p_pool;
-    Thread_arg *args[NUM_THREADS];
-};
+// struct Send_arg
+// {
+//     udpFramesIndex65536_1460 **p_index;
+//     // udpFramesPool_1460 **p_pool;
+//     Thread_arg *args[NUM_THREADS];
+// };
 
-struct Sync_arg
-{
-    byte *mem_buffer;
-    int *send_flag;
-    int send_loc;
-};
+// struct Sync_arg
+// {
+//     byte *mem_buffer;
+//     int *send_flag;
+//     int send_loc;
+// };
