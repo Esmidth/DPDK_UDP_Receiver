@@ -663,7 +663,7 @@ void align_thread(Thread_arg *sub)
 #ifdef DROP
 				cur_tsc = rte_rdtsc();
 				diff_tsc = cur_tsc - prev_tsc;
-				if (diff_tsc > TIMER_RESOLUTION_CYCLES * 10)
+				if (diff_tsc > TIMER_RESOLUTION_CYCLES * 100)
 				{
 					sub->drop_count++;
 					drop = true;
@@ -735,7 +735,7 @@ void align_thread(Thread_arg *sub)
 
 			if (drop)
 			{
-				for (int i = 0; i < 44; i++)
+				for (int i = 0; i < PACK_NUM; i++)
 				{
 					if (sub->local_UDPFrameIndex->pUDPFrame[id]->flags[i] == false)
 					{
@@ -828,6 +828,7 @@ void send_to_pulsar(void *arg)
 	// byte tmp[23][1460];
 	// byte tmp[(MESSAGE_LENGTH + 2) * 30000];
 	// byte *tmp = (byte *)malloc((MESSAGE_LENGTH + 2) * 30000);
+
 	byte *tmp = (byte *)rte_malloc(NULL, (MESSAGE_LENGTH + 2) * 100, 0);
 
 	Message tmp_msg[16];
@@ -879,7 +880,7 @@ void send_to_pulsar(void *arg)
 		//                memcpy(tmp,sub->local_UDPFrameIndex)
 
 		// spdlog::info("KAZE INIT MESG BUILD");
-		msg = MessageBuilder().setContent(tmp, MESSAGE_LENGTH + 2).build();
+		// msg = MessageBuilder().setContent(tmp, MESSAGE_LENGTH + 2).build();
 #ifdef SEND
 		// producer.sendAsync(msg, NULL);
 #endif
@@ -910,72 +911,72 @@ void send_to_pulsar(void *arg)
 	int queue_size = 0;
 	timeflag = 0;
 
-	while (1)
-	{
-		queue_size = sub->queue_to_send.size_approx();
-		// printf("queue_size:%d\n",queue_size);
-		if (queue_size > 10)
-		{
-			queue_size = 10;
-			// usleep(1);
-			//    printf("queque length: %d\n",send_arg->queue_to_send.size());
-			// printf("send_to_queue: %d\n", sub->queue_to_send.size());
+	// 	while (1)
+	// 	{
+	// 		// queue_size = sub->queue_to_send.size_approx();
+	// 		// printf("queue_size:%d\n",queue_size);
+	// 		if (queue_size > 10)
+	// 		{
+	// 			queue_size = 10;
+	// 			// usleep(1);
+	// 			//    printf("queque length: %d\n",send_arg->queue_to_send.size());
+	// 			// printf("send_to_queue: %d\n", sub->queue_to_send.size());
 
-			for (int i = 0; i < queue_size; i++)
-			{
-				sub->queue_to_send.try_dequeue(send_id);
-				memcpy(tmp + 2 + (MESSAGE_LENGTH + 2) * i, sub->local_UDPFrameIndex->pUDPFrame[send_id]->data,
-					   MESSAGE_LENGTH);
+	// 			for (int i = 0; i < queue_size; i++)
+	// 			{
+	// 				sub->queue_to_send.try_dequeue(send_id);
+	// 				memcpy(tmp + 2 + (MESSAGE_LENGTH + 2) * i, sub->local_UDPFrameIndex->pUDPFrame[send_id]->data,
+	// 					   MESSAGE_LENGTH);
 
-#ifdef FAKE_DATA
-				memcpy(tmp + 2 + 29 + (MESSAGE_LENGTH + 2) * i, data1 + (MESSAGE_LENGTH + 2) * i,
-					   MESSAGE_LENGTH - 29);
-#endif
+	// #ifdef FAKE_DATA
+	// 				memcpy(tmp + 2 + 29 + (MESSAGE_LENGTH + 2) * i, data1 + (MESSAGE_LENGTH + 2) * i,
+	// 					   MESSAGE_LENGTH - 29);
+	// #endif
 
-				memcpy(tmp + (MESSAGE_LENGTH + 2) * i, &send_id, sizeof(unsigned short));
-				// memcpy(&timeflag, tmp + 26 + (MESSAGE_LENGTH + 2) * i, sizeof(int));
+	// 				memcpy(tmp + (MESSAGE_LENGTH + 2) * i, &send_id, sizeof(unsigned short));
+	// 				// memcpy(&timeflag, tmp + 26 + (MESSAGE_LENGTH + 2) * i, sizeof(int));
 
-				// memcpy(&timeflag, tmp + 26 + (MESSAGE_LENGTH + 2) * i, sizeof(int));
-				memcpy(tmp + 26 + (MESSAGE_LENGTH + 2) * i, &timeflag, sizeof(int));
-				timeflag += 1000;
-				// spdlog::info("timeflag:{}",timeflag);
-#ifdef LOG
+	// 				// memcpy(&timeflag, tmp + 26 + (MESSAGE_LENGTH + 2) * i, sizeof(int));
+	// 				memcpy(tmp + 26 + (MESSAGE_LENGTH + 2) * i, &timeflag, sizeof(int));
+	// 				timeflag += 1000;
+	// 				// spdlog::info("timeflag:{}",timeflag);
+	// #ifdef LOG
 
-				sub->async_log3->info("init sent timeflag:{}", timeflag);
-#endif
+	// 				sub->async_log3->info("init sent timeflag:{}", timeflag);
+	// #endif
 
-#ifdef DROP
-				// memset(sub->local_UDPFrameIndex->pUDPFrame[send_id]->flags, 0, PACK_NUM * sizeof(bool));
-				for (int i = 0; i < PACK_NUM; i++)
-				{
-					sub->local_UDPFrameIndex->pUDPFrame[send_id]->flags[i] = false;
-				}
-#endif
-				sub->local_UDPFrameIndex->pUDPFrame[send_id]->count = 0;
-				sub->local_UDPFrameIndex->pUDPFrame[send_id] = nullptr;
-				//TODO: clear the indices here
+	// #ifdef DROP
+	// 				// memset(sub->local_UDPFrameIndex->pUDPFrame[send_id]->flags, 0, PACK_NUM * sizeof(bool));
+	// 				for (int i = 0; i < PACK_NUM; i++)
+	// 				{
+	// 					sub->local_UDPFrameIndex->pUDPFrame[send_id]->flags[i] = false;
+	// 				}
+	// #endif
+	// 				sub->local_UDPFrameIndex->pUDPFrame[send_id]->count = 0;
+	// 				sub->local_UDPFrameIndex->pUDPFrame[send_id] = nullptr;
+	// 				//TODO: clear the indices here
 
-				sub->sent_frame++;
-				if (timeflag != last_timeflag)
-				{
-					sub->mis_msg++;
-				}
-				last_timeflag = (timeflag + 1000); //% 5600000;
-			}
+	// 				sub->sent_frame++;
+	// 				if (timeflag != last_timeflag)
+	// 				{
+	// 					sub->mis_msg++;
+	// 				}
+	// 				last_timeflag = (timeflag + 1000); //% 5600000;
+	// 			}
 
-			msg = MessageBuilder().setContent(tmp, (MESSAGE_LENGTH + 2) * queue_size).build();
+	// 			// msg = MessageBuilder().setContent(tmp, (MESSAGE_LENGTH + 2) * queue_size).build();
 
-#ifdef SEND
-			producer.sendAsync(msg, NULL);
-#endif
-		}
-		else
-		{
-			// std::this_thread::yield();
-		}
+	// #ifdef SEND
+	// 			producer.sendAsync(msg, NULL);
+	// #endif
+	// 		}
+	// 		else
+	// 		{
+	// 			// std::this_thread::yield();
+	// 		}
 
-		//        usleep(100);
-	}
+	// 		//        usleep(100);
+	// 	}
 	for (int i = 0; i < ACTIVE_THREADS; i++)
 	{
 		client->close();
@@ -1058,7 +1059,9 @@ void timer_thread(std::vector<Thread_arg *> *args_vec)
 #ifdef DEBUG_DISPLAY
 
 			// spdlog::info("C{11}:Sec:{0:.1f}, align num: {1} ,Sent Frames: {2}, Forward Packets: {3}, queue1:{4}, queue2:{5}, queue3:{6}, global_count:{7}, mis:{8}, mis_msg:{9}, Speed:{10:.2f}", sec, (*args_vec)[i]->align_num, (*args_vec)[i]->sent_frame, (*args_vec)[i]->forward_packet, (*args_vec)[i]->mem_queue.size_approx(), (*args_vec)[i]->frame_queue.size_approx(), (*args_vec)[i]->queue_to_send.size_approx(), (*args_vec)[i]->global_count, (*args_vec)[i]->mis, (*args_vec)[i]->mis_msg, diff_count * 0.00001123046875 / TIME_STAMP, i);
-			spdlog::info("C{11}:Sec:{0:.1f}, align num: {1} ,Sent Frames: {2}, Forward Packets: {3}, queue1:{4}, queue2:{5}, queue3:{6}, global_count:{7}, mis:{8}, mis_msg:{9}, Speed:{10:.2f}", sec, (*args_vec)[i]->align_num, (*args_vec)[i]->sent_frame, (*args_vec)[i]->forward_packet, rte_ring_count((*args_vec)[i]->ring1_2), rte_ring_count((*args_vec)[i]->ring2_3), rte_ring_count((*args_vec)[i]->ring3_4), (*args_vec)[i]->global_count, (*args_vec)[i]->mis, (*args_vec)[i]->mis_msg, diff_count * 0.00001123046875 / TIME_STAMP, i);
+			// spdlog::info("C{11}:Sec:{0:.1f}, align num: {1} ,Sent Frames: {2}, Forward Packets: {3}, queue1:{4}, queue2:{5}, queue3:{6}, global_count:{7}, mis:{8}, mis_msg:{9}, Speed:{10:.2f}", sec, (*args_vec)[i]->align_num, (*args_vec)[i]->sent_frame, (*args_vec)[i]->forward_packet, rte_ring_count((*args_vec)[i]->ring1_2), rte_ring_count((*args_vec)[i]->ring2_3), rte_ring_count((*args_vec)[i]->ring3_4), (*args_vec)[i]->global_count, (*args_vec)[i]->mis, (*args_vec)[i]->mis_msg, diff_count * 0.00001123046875 / TIME_STAMP, i);
+			spdlog::info("C{8}:Sec:{0:.1f}, align num: {1} ,Sent Frames: {2}, Forward Packets: {3},global_count:{4}, mis:{5}, mis_msg:{6}, Speed:{7:.2f}", sec, (*args_vec)[i]->align_num, (*args_vec)[i]->sent_frame, (*args_vec)[i]->forward_packet, (*args_vec)[i]->global_count, (*args_vec)[i]->mis, (*args_vec)[i]->mis_msg, diff_count * 0.00001123046875 / TIME_STAMP, i);
+			// fmt::print("C{8}:Sec:{0:.1f}, align num: {1} ,Sent Frames: {2}, Forward Packets: {3},global_count:{4}, mis:{5}, mis_msg:{6}, Speed:{7:.2f}\n", sec, (*args_vec)[i]->align_num, (*args_vec)[i]->sent_frame, (*args_vec)[i]->forward_packet, (*args_vec)[i]->global_count, (*args_vec)[i]->mis, (*args_vec)[i]->mis_msg, diff_count * 0.00001123046875 / TIME_STAMP, i);
 
 #endif
 #endif
@@ -1079,8 +1082,25 @@ void timer_thread(std::vector<Thread_arg *> *args_vec)
  * The main function, which does initialization and calls the per-lcore
  * functions.
  */
+
+void dump(int signo)
+{
+	fprintf(stderr, "catch Segmentation fault!!!\n");
+#define SIZE 100
+	FILE *fh;
+	if (!(fh = fopen("/tmp/dbg_msg.log", "w+")))
+		exit(0);
+	void *buffer[100];
+	int nptrs;
+	nptrs = backtrace(buffer, SIZE);
+	backtrace_symbols_fd(buffer, nptrs, fileno(fh));
+	fflush(fh);
+	exit(-1);
+}
+
 int main(int argc, char *argv[])
 {
+	signal(SIGSEGV, &dump);
 
 	struct rte_mempool *mbuf_pool;
 	unsigned nb_ports;
@@ -1163,6 +1183,8 @@ int main(int argc, char *argv[])
 	std::string PRI_2_SEC;
 	std::string _MSG_POOL;
 
+	//TODO: 修改分配Ring为NUMA定制的版本
+
 	for (int i = 0; i < NUM_CHANNELS; i++)
 	{
 		PRI_2_SEC = "PRI_2_SEC" + std::to_string(i);
@@ -1236,7 +1258,8 @@ int main(int argc, char *argv[])
 		spdlog::info("ALLOCATED POOL & INDEX:{}", i);
 	}
 
-	// LOG FILE
+// LOG FILE
+#ifdef LOG
 	for (int i = 0; i < NUM_CHANNELS; i++)
 	{
 		args_vec[i]->async_log1 = spdlog::basic_logger_mt("basic_logger_" + std::to_string(i), log_dir + std::to_string(i) + "_t2.log");
@@ -1244,6 +1267,7 @@ int main(int argc, char *argv[])
 		args_vec[i]->async_log3 = spdlog::basic_logger_mt("basic_logger3_" + std::to_string(i), log_dir + std::to_string(i) + "_t4.log");
 		args_vec[i]->store_log = spdlog::basic_logger_mt("basic_logger4_" + std::to_string(i), log_dir + std::to_string(i) + "_t5.log");
 	}
+#endif
 
 	cpu_set_t mask;
 #ifdef DOB
@@ -1316,6 +1340,7 @@ int main(int argc, char *argv[])
 	mbuf_pool = rte_pktmbuf_pool_create("MBUF_POOL", NUM_MBUFS * nb_ports,
 										MBUF_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
 	printf("RTE_MBUF_DEFAULT_BUF_SIZE:%d\n", RTE_MBUF_DEFAULT_BUF_SIZE);
+
 	// TODO: switch to multi numa socket version, allocate mbuf_pool on each numa socket.
 
 	if (mbuf_pool == NULL)
