@@ -235,7 +235,6 @@ lcore_main(void *arg)
 
 		//TODO: switch to bulk
 
-
 		if (rte_mempool_get_bulk(sub->send_pool, msg, nb_rx) < 0)
 		{
 			rte_panic("MEMPOOL: Fail to get message buffer\n");
@@ -569,11 +568,10 @@ void consumer_thread(Thread_arg *sub)
 					{
 						rte_mempool_get(sub->local_udpFrameMempool, (void **)&tmp_udpFrame);
 
-						if(tmp_udpFrame == nullptr)
+						if (tmp_udpFrame == nullptr)
 						{
 							rte_panic("tmp_udpFrame == nullptr\n");
 						}
-
 
 						pUDPFrameIndex->pUDPFrame[frameSeq] = tmp_udpFrame;
 						tmp_udpFrame->count++;
@@ -922,14 +920,16 @@ void send_to_pulsar(void *arg)
 		// spdlog::info("frameSeq:{}",udpFrame_ptr->frameSeq);
 		udpFrame_ptr->count = 0;
 		memset(udpFrame_ptr->flags, 0, PACK_NUM);
+		// sub->local_udpFrameMempool
 		// memset(sub->local_UDPFrameIndex->pUDPFrame[send_id]->flags, 0, PACK_NUM);
 		// memset(sub->local_UDPFrameIndex->pUDPFrame[send_id],0,sizeof(udpFrame_1460));
 		// udpFrame_ptr = nullptr;
 		// sub->local_UDPFrameIndex->pUDPFrame[send_id] = nullptr;
-		if (sub->local_UDPFrameIndex->pUDPFrame[udpFrame_ptr->frameSeq] != nullptr)
-		{
-			sub->local_UDPFrameIndex->pUDPFrame[udpFrame_ptr->frameSeq] = nullptr;
-		}
+		// if (sub->local_UDPFrameIndex->pUDPFrame[udpFrame_ptr->frameSeq] != nullptr)
+		// {
+		sub->local_UDPFrameIndex->pUDPFrame[udpFrame_ptr->frameSeq] = nullptr;
+		rte_mempool_put(sub->local_udpFrameMempool, udpFrame_ptr);
+		// }
 
 		sub->sent_frame++;
 
@@ -1281,11 +1281,13 @@ int main(int argc, char *argv[])
 
 	for (int i = 0; i < NUM_CHANNELS; i++)
 	{
+		std::string UDP_FRAME_MEM_POOL;
+		UDP_FRAME_MEM_POOL = "UDP_FRAME_MEM_POOL_" + std::to_string(i);
 
 		spdlog::info("START TO ALLOCATE POOL & INDEX:{}", i);
 		args_vec[i]->local_UDPFrameIndex = new udpFramesIndex65536_1460();
-		args_vec[i]->local_udpFrameMempool = rte_mempool_create("UDP_FRAME_MEM_POOL", 16384, sizeof(udpFrame_1460), 128, 0, NULL, NULL, NULL, NULL, rte_socket_id(), 0);
-		if(args_vec[i]->local_udpFrameMempool == nullptr)
+		args_vec[i]->local_udpFrameMempool = rte_mempool_create(UDP_FRAME_MEM_POOL.c_str(), 16384, sizeof(udpFrame_1460), 0, 0, NULL, NULL, NULL, NULL, rte_socket_id(), 0);
+		if (args_vec[i]->local_udpFrameMempool == nullptr)
 		{
 			rte_panic("MEMPOOL ALLOCATED FAILED\n");
 		}
