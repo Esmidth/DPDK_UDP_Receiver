@@ -15,7 +15,7 @@
 
 #define NUM_MBUFS 8191
 #define MBUF_CACHE_SIZE 250
-#define BURST_SIZE 32
+#define BURST_SIZE 64
 
 #define LINKED_NODE_NUM 10000000 // 1000k
 

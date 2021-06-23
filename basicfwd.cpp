@@ -207,7 +207,8 @@ lcore_main(void *arg)
 	/* Run until the application is quit or killed. */
 	uint16_t count[2] = {0, 0};
 	udpPacket_1460 *tmp_packet_ptr;
-	void *msg = NULL;
+	void *msg[BURST_SIZE];
+	// void *msg = nullptr;
 	for (;;)
 	{
 		/*
@@ -234,33 +235,48 @@ lcore_main(void *arg)
 
 		//TODO: switch to bulk
 
+
+		if (rte_mempool_get_bulk(sub->send_pool, msg, nb_rx) < 0)
+		{
+			rte_panic("MEMPOOL: Fail to get message buffer\n");
+		}
 		for (int i = 0; i < nb_rx; i++)
 		{
-			// if (bufs[i]->pkt_len == 1514)
-			// if(true)
-			// {
-			if (rte_mempool_get(sub->send_pool, &msg) < 0)
-			{
-				rte_panic("Fail to get message buffer\n");
-			}
-			// printf("pkt_len:%hu data_len:%d buf_len:%d data_off:%d\n", bufs[i]->pkt_len, bufs[i]->data_len, bufs[i]->buf_len, bufs[i]->data_off);
-			//printf("%x %x %x %x %x %x %x\n", *(char*)(bufs[i]->buf_addr + bufs[i]->data_off), 0, 0, 0, 0, 0, 0);
 			tmp_packet_ptr = (udpPacket_1460 *)((char *)bufs[i]->buf_addr + bufs[i]->data_off + 42);
-			// for (int i = 0; i < 1472; i++)
-			// {
-			// 	printf("%x,", *((unsigned char *)bufs[i]->buf_addr + bufs[i]->data_off + 42 + i));
-			// }
-			// printf("\n");
-			rte_memcpy(msg, tmp_packet_ptr, 1472);
-			if (rte_ring_enqueue(sub->ring1_2, msg) < 0)
-			{
-				rte_panic("Fail to send message, message discard\n");
-			}
-			// printf("frameSeq:%d, packetSeq:%d, packetLen:%d\n", tmp_packet_ptr->frameSeq, tmp_packet_ptr->packetSeq, tmp_packet_ptr->packetLen);
-			// print_pkt(bufs[i]);
-			// count[port] += 1;
-			// }
+			rte_memcpy(msg[i], tmp_packet_ptr, 1472);
 		}
+		if (rte_ring_enqueue_bulk(sub->ring1_2, msg, nb_rx, NULL) < 0)
+		{
+			rte_panic("Fail to send message, message discard\n");
+		}
+
+		// for (int i = 0; i < nb_rx; i++)
+		// {
+		// 	// if (bufs[i]->pkt_len == 1514)
+		// 	// if(true)
+		// 	// {
+		// 	if (rte_mempool_get(sub->send_pool, &msg) < 0)
+		// 	{
+		// 		rte_panic("Fail to get message buffer\n");
+		// 	}
+		// 	// printf("pkt_len:%hu data_len:%d buf_len:%d data_off:%d\n", bufs[i]->pkt_len, bufs[i]->data_len, bufs[i]->buf_len, bufs[i]->data_off);
+		// 	//printf("%x %x %x %x %x %x %x\n", *(char*)(bufs[i]->buf_addr + bufs[i]->data_off), 0, 0, 0, 0, 0, 0);
+		// 	tmp_packet_ptr = (udpPacket_1460 *)((char *)bufs[i]->buf_addr + bufs[i]->data_off + 42);
+		// 	// for (int i = 0; i < 1472; i++)
+		// 	// {
+		// 	// 	printf("%x,", *((unsigned char *)bufs[i]->buf_addr + bufs[i]->data_off + 42 + i));
+		// 	// }
+		// 	// printf("\n");
+		// 	rte_memcpy(msg, tmp_packet_ptr, 1472);
+		// 	if (rte_ring_enqueue(sub->ring1_2, msg) < 0)
+		// 	{
+		// 		rte_panic("Fail to send message, message discard\n");
+		// 	}
+		// 	// printf("frameSeq:%d, packetSeq:%d, packetLen:%d\n", tmp_packet_ptr->frameSeq, tmp_packet_ptr->packetSeq, tmp_packet_ptr->packetLen);
+		// 	// print_pkt(bufs[i]);
+		// 	// count[port] += 1;
+		// 	// }
+		// }
 		// printf("count:%d port_id:%d\n----------\n", count[port], port);
 
 		/* Send burst of TX packets, to second port of pair. */
@@ -451,7 +467,7 @@ void consumer_thread(Thread_arg *sub)
 #ifndef QUEUE
 
 #ifdef RING
-					void *tmpp;
+					void *tmpp = nullptr;
 					if (rte_ring_dequeue(sub->ring1_2, &tmpp) < 0)
 					{
 
