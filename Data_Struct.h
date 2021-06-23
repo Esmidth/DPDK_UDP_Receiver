@@ -23,8 +23,8 @@
 
 #define NOZOMI // recv thread
 #define DOB    // assemble thread / consume thread
-// #define GODOT  // align thread
-// #define KAZE   // send thread
+#define GODOT  // align thread
+#define KAZE   // send thread
 
 // #define SEND // send to MQ
 // #define SEND_BATCH
