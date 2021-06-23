@@ -15,7 +15,7 @@
 
 #define NUM_MBUFS 8191
 #define MBUF_CACHE_SIZE 250
-#define BURST_SIZE 32
+#define BURST_SIZE 64
 
 #define LINKED_NODE_NUM 10000000 // 1000k
 
@@ -23,8 +23,8 @@
 
 #define NOZOMI // recv thread
 #define DOB    // assemble thread / consume thread
-#define GODOT  // align thread
-#define KAZE   // send thread
+// #define GODOT  // align thread
+// #define KAZE   // send thread
 
 // #define SEND // send to MQ
 // #define SEND_BATCH
@@ -36,7 +36,7 @@
 // #define QUEUE // using QUEUE version
 #define RING // using RING version
 // #define LOG // create log file
-#define DROP // drop frame
+// #define DROP // drop frame
 // #define FAKE_DATA // use fake data to overwrite true loads
 
 // #define VM
