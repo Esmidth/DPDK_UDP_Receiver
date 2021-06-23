@@ -35,6 +35,7 @@ const unsigned priv_data_sz = 0;
 
 #define TIME_STAMP 1 // sec
 
+
 double last_sec = 0;
 int first_time = true;
 
@@ -623,17 +624,16 @@ void consumer_thread(Thread_arg *sub)
 						// pUDPFrameIndex->pUDPFrame[frameSeq]->packetNum = packet_ptr->packetNum;
 						// sub->frame_queue.enqueue(frameSeq);
 
-						//TODO: switch rte_ring from lockless queue
 						rte_ring_enqueue(sub->ring2_3, pUDPFrameIndex->pUDPFrame[frameSeq]);
 					}
 					else
 					{
 						// spdlog::info("P3");
-						pUDPFrameIndex->pUDPFrame[frameSeq]->count += 1;
 						memcpy(pUDPFrameIndex->pUDPFrame[frameSeq]->data[packet_ptr->packetSeq], packet_ptr->data, packet_ptr->packetLen);
 #ifdef DROP
 						pUDPFrameIndex->pUDPFrame[frameSeq]->flags[packet_ptr->packetSeq] = true;
 #endif
+						pUDPFrameIndex->pUDPFrame[frameSeq]->count += 1;
 					}
 
 #ifndef QUEUE
@@ -663,7 +663,7 @@ void align_thread(Thread_arg *sub)
 	// sleep(1);
 	// Thread_arg *sub = (Thread_arg *)arg;
 
-	int id;
+	// int id;
 	// while (!align_init)
 	// {
 	//     std::this_thread::yield();
@@ -685,16 +685,17 @@ void align_thread(Thread_arg *sub)
 		}
 		udpFrame_ptr = (udpFrame_1460 *)tmpp;
 
+
 		if (udpFrame_ptr != nullptr)
 		{
 			cur_tsc = rte_rdtsc();
 			prev_tsc = cur_tsc;
-			while (udpFrame_ptr->count != udpFrame_ptr->packetNum)
+			while (udpFrame_ptr->count < udpFrame_ptr->packetNum)
 			{
 #ifdef DROP
 				cur_tsc = rte_rdtsc();
 				diff_tsc = cur_tsc - prev_tsc;
-				if (diff_tsc > TIMER_RESOLUTION_CYCLES * 100)
+				if (diff_tsc > TIMER_RESOLUTION_CYCLES * 10)
 				{
 					sub->drop_count++;
 					drop = true;
@@ -768,14 +769,26 @@ void align_thread(Thread_arg *sub)
 			{
 				for (int i = 0; i < PACK_NUM; i++)
 				{
-					if (sub->local_UDPFrameIndex->pUDPFrame[id]->flags[i] == false)
+					if(udpFrame_ptr->flags[i] == false)
 					{
-						memset(sub->local_UDPFrameIndex->pUDPFrame[id]->data[i], 0, DATA_LENGTH);
+						memset(udpFrame_ptr->data[i],0,DATA_LENGTH);
 					}
+
+					// if (sub->local_UDPFrameIndex->pUDPFrame[id]->flags[i] == false)
+					// {
+						// memset(sub->local_UDPFrameIndex->pUDPFrame[id]->data[i], 0, DATA_LENGTH);
+					// }
 				}
+				// memset(sub->local_UDPFrameIndex->pUDPFrame[id])
 				drop = false;
 			}
 #endif
+
+			// if(udpFrame_ptr->count > PACK_NUM)
+			// {
+			// 	sub->local_UDPFrameIndex->pUDPFrame[udpFrame_ptr->frameSeq]= nullptr;
+			// 	rte_mempool_put(sub->local_udpFrameMempool,udpFrame_ptr);
+			// }
 
 			sub->align_num++;
 			// sub->queue_to_send.enqueue(id);
@@ -1092,8 +1105,8 @@ void timer_thread(std::vector<Thread_arg *> *args_vec)
 #ifdef DEBUG_DISPLAY
 
 			// spdlog::info("C{11}:Sec:{0:.1f}, align num: {1} ,Sent Frames: {2}, Forward Packets: {3}, queue1:{4}, queue2:{5}, queue3:{6}, global_count:{7}, mis:{8}, mis_msg:{9}, Speed:{10:.2f}", sec, (*args_vec)[i]->align_num, (*args_vec)[i]->sent_frame, (*args_vec)[i]->forward_packet, (*args_vec)[i]->mem_queue.size_approx(), (*args_vec)[i]->frame_queue.size_approx(), (*args_vec)[i]->queue_to_send.size_approx(), (*args_vec)[i]->global_count, (*args_vec)[i]->mis, (*args_vec)[i]->mis_msg, diff_count * 0.00001123046875 / TIME_STAMP, i);
-			// spdlog::info("C{11}:Sec:{0:.1f}, align num: {1} ,Sent Frames: {2}, Forward Packets: {3}, queue1:{4}, queue2:{5}, queue3:{6}, global_count:{7}, mis:{8}, mis_msg:{9}, Speed:{10:.2f}", sec, (*args_vec)[i]->align_num, (*args_vec)[i]->sent_frame, (*args_vec)[i]->forward_packet, rte_ring_count((*args_vec)[i]->ring1_2), rte_ring_count((*args_vec)[i]->ring2_3), rte_ring_count((*args_vec)[i]->ring3_4), (*args_vec)[i]->global_count, (*args_vec)[i]->mis, (*args_vec)[i]->mis_msg, diff_count * 0.00001123046875 / TIME_STAMP, i);
-			spdlog::info("C{8}:Sec:{0:.1f}, align num: {1} ,Sent Frames: {2}, Forward Packets: {3},global_count:{4}, mis:{5}, mis_msg:{6}, Speed:{7:.2f}", sec, (*args_vec)[i]->align_num, (*args_vec)[i]->sent_frame, (*args_vec)[i]->forward_packet, (*args_vec)[i]->global_count, (*args_vec)[i]->mis, (*args_vec)[i]->mis_msg, diff_count * 0.00001123046875 / TIME_STAMP, i);
+			spdlog::info("C{11}:Sec:{0:.1f}, align num: {1} ,Sent Frames: {2}, Forward Packets: {3}, queue1:{4}, queue2:{5}, queue3:{6}, \nglobal_count:{7}, mis:{8}, mis_msg:{9},drop:{12}, Speed:{10:.2f}", sec, (*args_vec)[i]->align_num, (*args_vec)[i]->sent_frame, (*args_vec)[i]->forward_packet, rte_ring_count((*args_vec)[i]->ring1_2), rte_ring_count((*args_vec)[i]->ring2_3), rte_ring_count((*args_vec)[i]->ring3_4), (*args_vec)[i]->global_count, (*args_vec)[i]->mis, (*args_vec)[i]->mis_msg, diff_count * 0.00001123046875 / TIME_STAMP, i,(*args_vec)[i]->drop_count);
+			// spdlog::info("C{8}:Sec:{0:.1f}, align num: {1} ,Sent Frames: {2}, Forward Packets: {3},global_count:{4}, mis:{5}, mis_msg:{6}, Speed:{7:.2f}", sec, (*args_vec)[i]->align_num, (*args_vec)[i]->sent_frame, (*args_vec)[i]->forward_packet, (*args_vec)[i]->global_count, (*args_vec)[i]->mis, (*args_vec)[i]->mis_msg, diff_count * 0.00001123046875 / TIME_STAMP, i);
 			// fmt::print("C{8}:Sec:{0:.1f}, align num: {1} ,Sent Frames: {2}, Forward Packets: {3},global_count:{4}, mis:{5}, mis_msg:{6}, Speed:{7:.2f}\n", sec, (*args_vec)[i]->align_num, (*args_vec)[i]->sent_frame, (*args_vec)[i]->forward_packet, (*args_vec)[i]->global_count, (*args_vec)[i]->mis, (*args_vec)[i]->mis_msg, diff_count * 0.00001123046875 / TIME_STAMP, i);
 
 #endif

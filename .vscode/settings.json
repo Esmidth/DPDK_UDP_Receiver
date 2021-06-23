@@ -54,5 +54,22 @@
         "cinttypes": "cpp",
         "typeinfo": "cpp",
         "bitset": "cpp"
-    }
+    },
+    "workbench.colorCustomizations": {
+        "activityBar.activeBackground": "#a3d8af",
+        "activityBar.activeBorder": "#8a79c6",
+        "activityBar.background": "#a3d8af",
+        "activityBar.foreground": "#15202b",
+        "activityBar.inactiveForeground": "#15202b99",
+        "activityBarBadge.background": "#8a79c6",
+        "activityBarBadge.foreground": "#15202b",
+        "statusBar.background": "#7fc990",
+        "statusBar.foreground": "#15202b",
+        "statusBarItem.hoverBackground": "#5bba71",
+        "titleBar.activeBackground": "#7fc990",
+        "titleBar.activeForeground": "#15202b",
+        "titleBar.inactiveBackground": "#7fc99099",
+        "titleBar.inactiveForeground": "#15202b99"
+    },
+    "peacock.remoteColor": "#7fc990"
 }
