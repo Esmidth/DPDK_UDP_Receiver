@@ -13,9 +13,9 @@
 #define MAX_PKT_BURST 32
 #define MEMPOOL_CACHE_SIZE 512
 
-#define NUM_MBUFS 8191
+#define NUM_MBUFS 20480
 #define MBUF_CACHE_SIZE 250
-#define BURST_SIZE 64
+#define BURST_SIZE 16
 
 #define LINKED_NODE_NUM 10000000 // 1000k
 
@@ -23,8 +23,8 @@
 
 #define NOZOMI // recv thread
 #define DOB    // assemble thread / consume thread
-#define GODOT  // align thread
-#define KAZE   // send thread
+// #define GODOT  // align thread
+// #define KAZE   // send thread
 
 // #define SEND // send to MQ
 // #define SEND_BATCH

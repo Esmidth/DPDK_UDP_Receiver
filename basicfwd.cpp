@@ -339,6 +339,7 @@ static int check_port_pair_config(void)
 }
 
 //DOB
+static
 void consumer_thread(Thread_arg *sub)
 {
 	udpFramesIndex65536_1460 *pUDPFrameIndex;
@@ -631,7 +632,7 @@ void consumer_thread(Thread_arg *sub)
 						// spdlog::info("P3");
 						memcpy(pUDPFrameIndex->pUDPFrame[frameSeq]->data[packet_ptr->packetSeq], packet_ptr->data, packet_ptr->packetLen);
 #ifdef DROP
-						pUDPFrameIndex->pUDPFrame[frameSeq]->flags[packet_ptr->packetSeq] = true;
+						// pUDPFrameIndex->pUDPFrame[frameSeq]->flags[packet_ptr->packetSeq] = true;
 #endif
 						pUDPFrameIndex->pUDPFrame[frameSeq]->count += 1;
 					}
@@ -658,6 +659,7 @@ void consumer_thread(Thread_arg *sub)
 }
 
 //GODOT
+static
 void align_thread(Thread_arg *sub)
 {
 	// sleep(1);
@@ -805,6 +807,7 @@ void align_thread(Thread_arg *sub)
 	//}
 }
 
+static
 void send_to_pulsar(void *arg)
 {
 	// sleep(1);
@@ -1030,6 +1033,7 @@ void send_to_pulsar(void *arg)
 	free(tmp);
 }
 
+static
 void timer_thread(std::vector<Thread_arg *> *args_vec)
 {
 
@@ -1105,7 +1109,7 @@ void timer_thread(std::vector<Thread_arg *> *args_vec)
 #ifdef DEBUG_DISPLAY
 
 			// spdlog::info("C{11}:Sec:{0:.1f}, align num: {1} ,Sent Frames: {2}, Forward Packets: {3}, queue1:{4}, queue2:{5}, queue3:{6}, global_count:{7}, mis:{8}, mis_msg:{9}, Speed:{10:.2f}", sec, (*args_vec)[i]->align_num, (*args_vec)[i]->sent_frame, (*args_vec)[i]->forward_packet, (*args_vec)[i]->mem_queue.size_approx(), (*args_vec)[i]->frame_queue.size_approx(), (*args_vec)[i]->queue_to_send.size_approx(), (*args_vec)[i]->global_count, (*args_vec)[i]->mis, (*args_vec)[i]->mis_msg, diff_count * 0.00001123046875 / TIME_STAMP, i);
-			spdlog::info("C{11}:Sec:{0:.1f}, align num: {1} ,Sent Frames: {2}, Forward Packets: {3}, queue1:{4}, queue2:{5}, queue3:{6}, \nglobal_count:{7}, mis:{8}, mis_msg:{9},drop:{12}, Speed:{10:.2f}", sec, (*args_vec)[i]->align_num, (*args_vec)[i]->sent_frame, (*args_vec)[i]->forward_packet, rte_ring_count((*args_vec)[i]->ring1_2), rte_ring_count((*args_vec)[i]->ring2_3), rte_ring_count((*args_vec)[i]->ring3_4), (*args_vec)[i]->global_count, (*args_vec)[i]->mis, (*args_vec)[i]->mis_msg, diff_count * 0.00001123046875 / TIME_STAMP, i,(*args_vec)[i]->drop_count);
+			spdlog::info("C{11}:Sec:{0:.1f}, align num: {1} ,Sent Frames: {2}, Forward Packets: {3}, queue1:{4}, queue2:{5}, queue3:{6}, global_count:{7}, mis:{8}, mis_msg:{9},drop:{12}, Speed:{10:.2f}", sec, (*args_vec)[i]->align_num, (*args_vec)[i]->sent_frame, (*args_vec)[i]->forward_packet, rte_ring_count((*args_vec)[i]->ring1_2), rte_ring_count((*args_vec)[i]->ring2_3), rte_ring_count((*args_vec)[i]->ring3_4), (*args_vec)[i]->global_count, (*args_vec)[i]->mis, (*args_vec)[i]->mis_msg, diff_count * 0.00001123046875 / TIME_STAMP, i,(*args_vec)[i]->drop_count);
 			// spdlog::info("C{8}:Sec:{0:.1f}, align num: {1} ,Sent Frames: {2}, Forward Packets: {3},global_count:{4}, mis:{5}, mis_msg:{6}, Speed:{7:.2f}", sec, (*args_vec)[i]->align_num, (*args_vec)[i]->sent_frame, (*args_vec)[i]->forward_packet, (*args_vec)[i]->global_count, (*args_vec)[i]->mis, (*args_vec)[i]->mis_msg, diff_count * 0.00001123046875 / TIME_STAMP, i);
 			// fmt::print("C{8}:Sec:{0:.1f}, align num: {1} ,Sent Frames: {2}, Forward Packets: {3},global_count:{4}, mis:{5}, mis_msg:{6}, Speed:{7:.2f}\n", sec, (*args_vec)[i]->align_num, (*args_vec)[i]->sent_frame, (*args_vec)[i]->forward_packet, (*args_vec)[i]->global_count, (*args_vec)[i]->mis, (*args_vec)[i]->mis_msg, diff_count * 0.00001123046875 / TIME_STAMP, i);
 
@@ -1328,7 +1332,7 @@ int main(int argc, char *argv[])
 	{
 		assemble_threads.emplace_back(consumer_thread, args_vec[i]);
 		CPU_ZERO(&mask);
-		CPU_SET(args_vec[i]->channel_id + 1, &mask);
+		CPU_SET(args_vec[i]->channel_id + 40, &mask);
 		pthread_setaffinity_np(assemble_threads[i].native_handle(), sizeof(cpu_set_t), &mask);
 	}
 	spdlog::warn("INIT DOB");
@@ -1342,7 +1346,7 @@ int main(int argc, char *argv[])
 		align_threads.emplace_back(align_thread, args_vec[i]);
 		// cpu_set_t mask;
 		CPU_ZERO(&mask);
-		CPU_SET(args_vec[i]->channel_id + 2, &mask);
+		CPU_SET(args_vec[i]->channel_id + 1, &mask);
 		pthread_setaffinity_np(align_threads[i].native_handle(), sizeof(cpu_set_t), &mask);
 	}
 
@@ -1356,7 +1360,7 @@ int main(int argc, char *argv[])
 		// cpu_set_t mask;
 		CPU_ZERO(&mask);
 		// CPU_SET(args_vec[i]->channel_id + 1 + 40, &mask);
-		CPU_SET(args_vec[i]->channel_id + 3, &mask);
+		CPU_SET(args_vec[i]->channel_id + 40+1, &mask);
 		pthread_setaffinity_np(send_threads[i].native_handle(), sizeof(cpu_set_t), &mask);
 	}
 #endif
