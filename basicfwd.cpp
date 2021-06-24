@@ -35,7 +35,6 @@ const unsigned priv_data_sz = 0;
 
 #define TIME_STAMP 1 // sec
 
-
 double last_sec = 0;
 int first_time = true;
 
@@ -187,7 +186,8 @@ lcore_main(void *arg)
 	uint16_t port;
 
 	// int pp = *(int *)arg;
-	Thread_arg *sub = (Thread_arg *)arg;
+	// Thread_arg *sub = (Thread_arg *)arg;
+	std::vector<Thread_arg *> *sub = (std::vector<Thread_arg *> *)(arg);
 
 	/*
 	 * Check that the port is on the same NUMA node as the polling thread
@@ -206,7 +206,7 @@ lcore_main(void *arg)
 		   rte_lcore_id());
 
 	/* Run until the application is quit or killed. */
-	uint16_t count[2] = {0, 0};
+	// uint16_t count[2] = {0, 0};
 	udpPacket_1460 *tmp_packet_ptr;
 	void *msg[BURST_SIZE];
 	// void *msg = nullptr;
@@ -218,79 +218,83 @@ lcore_main(void *arg)
 		 */
 		// RTE_ETH_FOREACH_DEV(port)
 		// {
-		port = sub->proc_id;
-
-		/* Get burst of RX packets, from first port of pair. */
-		struct rte_mbuf *bufs[BURST_SIZE];
-		const uint16_t nb_rx = rte_eth_rx_burst(port, 0,
-												bufs, BURST_SIZE);
-
-		if (unlikely(nb_rx == 0))
-			continue;
-		// printf("nb_rx:%d\n", nb_rx);
-		// for(int i = 0;i<nb_rx;i++)
-		// {
-		// 	printf("Preamble :%x %x %x %x %x %x %x\nSFD:%x\n",bufs[i][0],bufs[i][1],bufs[i][2],bufs[i][3],bufs[i][4],bufs[i][5],bufs[i][6],bufs[i][7]);
-		// }
-		// struct ip* ip_packet;
-
-		//TODO: switch to bulk
-
-		if (rte_mempool_get_bulk(sub->send_pool, msg, nb_rx) < 0)
+		for (int jj = 0; jj < 3; jj++)
 		{
-			rte_panic("MEMPOOL: Fail to get message buffer\n");
-		}
-		for (int i = 0; i < nb_rx; i++)
-		{
-			tmp_packet_ptr = (udpPacket_1460 *)((char *)bufs[i]->buf_addr + bufs[i]->data_off + 42);
-			rte_memcpy(msg[i], tmp_packet_ptr, 1472);
-		}
-		if (rte_ring_enqueue_bulk(sub->ring1_2, msg, nb_rx, NULL) < 0)
-		{
-			rte_panic("Fail to send message, message discard\n");
-		}
 
-		// for (int i = 0; i < nb_rx; i++)
-		// {
-		// 	// if (bufs[i]->pkt_len == 1514)
-		// 	// if(true)
-		// 	// {
-		// 	if (rte_mempool_get(sub->send_pool, &msg) < 0)
-		// 	{
-		// 		rte_panic("Fail to get message buffer\n");
-		// 	}
-		// 	// printf("pkt_len:%hu data_len:%d buf_len:%d data_off:%d\n", bufs[i]->pkt_len, bufs[i]->data_len, bufs[i]->buf_len, bufs[i]->data_off);
-		// 	//printf("%x %x %x %x %x %x %x\n", *(char*)(bufs[i]->buf_addr + bufs[i]->data_off), 0, 0, 0, 0, 0, 0);
-		// 	tmp_packet_ptr = (udpPacket_1460 *)((char *)bufs[i]->buf_addr + bufs[i]->data_off + 42);
-		// 	// for (int i = 0; i < 1472; i++)
-		// 	// {
-		// 	// 	printf("%x,", *((unsigned char *)bufs[i]->buf_addr + bufs[i]->data_off + 42 + i));
-		// 	// }
-		// 	// printf("\n");
-		// 	rte_memcpy(msg, tmp_packet_ptr, 1472);
-		// 	if (rte_ring_enqueue(sub->ring1_2, msg) < 0)
-		// 	{
-		// 		rte_panic("Fail to send message, message discard\n");
-		// 	}
-		// 	// printf("frameSeq:%d, packetSeq:%d, packetLen:%d\n", tmp_packet_ptr->frameSeq, tmp_packet_ptr->packetSeq, tmp_packet_ptr->packetLen);
-		// 	// print_pkt(bufs[i]);
-		// 	// count[port] += 1;
-		// 	// }
-		// }
-		// printf("count:%d port_id:%d\n----------\n", count[port], port);
+			port = (*sub)[jj]->proc_id;
 
-		/* Send burst of TX packets, to second port of pair. */
-		// const uint16_t nb_tx = rte_eth_tx_burst(port ^ 1, 0,
-		// 		bufs, nb_rx);
-		const uint16_t nb_tx = 0;
+			/* Get burst of RX packets, from first port of pair. */
+			struct rte_mbuf *bufs[BURST_SIZE];
+			const uint16_t nb_rx = rte_eth_rx_burst(port, 0,
+													bufs, BURST_SIZE);
 
-		//TODO: remove free packets here and add tao DOB thread
-		/* Free any unsent packets. */
-		if (unlikely(nb_tx < nb_rx))
-		{
-			uint16_t buf;
-			for (buf = nb_tx; buf < nb_rx; buf++)
-				rte_pktmbuf_free(bufs[buf]);
+			if (unlikely(nb_rx == 0))
+				continue;
+			// printf("nb_rx:%d\n", nb_rx);
+			// for(int i = 0;i<nb_rx;i++)
+			// {
+			// 	printf("Preamble :%x %x %x %x %x %x %x\nSFD:%x\n",bufs[i][0],bufs[i][1],bufs[i][2],bufs[i][3],bufs[i][4],bufs[i][5],bufs[i][6],bufs[i][7]);
+			// }
+			// struct ip* ip_packet;
+
+			//TODO: switch to bulk
+
+			if (rte_mempool_get_bulk((*sub)[jj]->send_pool, msg, nb_rx) < 0)
+			{
+				rte_panic("MEMPOOL: Fail to get message buffer\n");
+			}
+			for (int i = 0; i < nb_rx; i++)
+			{
+				tmp_packet_ptr = (udpPacket_1460 *)((char *)bufs[i]->buf_addr + bufs[i]->data_off + 42);
+				rte_memcpy(msg[i], tmp_packet_ptr, 1472);
+			}
+			if (rte_ring_enqueue_bulk((*sub)[jj]->ring1_2, msg, nb_rx, NULL) < 0)
+			{
+				rte_panic("Fail to send message, message discard\n");
+			}
+
+			// for (int i = 0; i < nb_rx; i++)
+			// {
+			// 	// if (bufs[i]->pkt_len == 1514)
+			// 	// if(true)
+			// 	// {
+			// 	if (rte_mempool_get(sub->send_pool, &msg) < 0)
+			// 	{
+			// 		rte_panic("Fail to get message buffer\n");
+			// 	}
+			// 	// printf("pkt_len:%hu data_len:%d buf_len:%d data_off:%d\n", bufs[i]->pkt_len, bufs[i]->data_len, bufs[i]->buf_len, bufs[i]->data_off);
+			// 	//printf("%x %x %x %x %x %x %x\n", *(char*)(bufs[i]->buf_addr + bufs[i]->data_off), 0, 0, 0, 0, 0, 0);
+			// 	tmp_packet_ptr = (udpPacket_1460 *)((char *)bufs[i]->buf_addr + bufs[i]->data_off + 42);
+			// 	// for (int i = 0; i < 1472; i++)
+			// 	// {
+			// 	// 	printf("%x,", *((unsigned char *)bufs[i]->buf_addr + bufs[i]->data_off + 42 + i));
+			// 	// }
+			// 	// printf("\n");
+			// 	rte_memcpy(msg, tmp_packet_ptr, 1472);
+			// 	if (rte_ring_enqueue(sub->ring1_2, msg) < 0)
+			// 	{
+			// 		rte_panic("Fail to send message, message discard\n");
+			// 	}
+			// 	// printf("frameSeq:%d, packetSeq:%d, packetLen:%d\n", tmp_packet_ptr->frameSeq, tmp_packet_ptr->packetSeq, tmp_packet_ptr->packetLen);
+			// 	// print_pkt(bufs[i]);
+			// 	// count[port] += 1;
+			// 	// }
+			// }
+			// printf("count:%d port_id:%d\n----------\n", count[port], port);
+
+			/* Send burst of TX packets, to second port of pair. */
+			// const uint16_t nb_tx = rte_eth_tx_burst(port ^ 1, 0,
+			// 		bufs, nb_rx);
+			const uint16_t nb_tx = 0;
+
+			//TODO: remove free packets here and add tao DOB thread
+			/* Free any unsent packets. */
+			if (unlikely(nb_tx < nb_rx))
+			{
+				uint16_t buf;
+				for (buf = nb_tx; buf < nb_rx; buf++)
+					rte_pktmbuf_free(bufs[buf]);
+			}
 		}
 		// }
 	}
@@ -339,8 +343,7 @@ static int check_port_pair_config(void)
 }
 
 //DOB
-static
-void consumer_thread(Thread_arg *sub)
+static void consumer_thread(Thread_arg *sub)
 {
 	udpFramesIndex65536_1460 *pUDPFrameIndex;
 	// udpFramesPool_1460 *pUDPFramePool;
@@ -659,8 +662,7 @@ void consumer_thread(Thread_arg *sub)
 }
 
 //GODOT
-static
-void align_thread(Thread_arg *sub)
+static void align_thread(Thread_arg *sub)
 {
 	// sleep(1);
 	// Thread_arg *sub = (Thread_arg *)arg;
@@ -686,7 +688,6 @@ void align_thread(Thread_arg *sub)
 			continue;
 		}
 		udpFrame_ptr = (udpFrame_1460 *)tmpp;
-
 
 		if (udpFrame_ptr != nullptr)
 		{
@@ -771,14 +772,14 @@ void align_thread(Thread_arg *sub)
 			{
 				for (int i = 0; i < PACK_NUM; i++)
 				{
-					if(udpFrame_ptr->flags[i] == false)
+					if (udpFrame_ptr->flags[i] == false)
 					{
-						memset(udpFrame_ptr->data[i],0,DATA_LENGTH);
+						memset(udpFrame_ptr->data[i], 0, DATA_LENGTH);
 					}
 
 					// if (sub->local_UDPFrameIndex->pUDPFrame[id]->flags[i] == false)
 					// {
-						// memset(sub->local_UDPFrameIndex->pUDPFrame[id]->data[i], 0, DATA_LENGTH);
+					// memset(sub->local_UDPFrameIndex->pUDPFrame[id]->data[i], 0, DATA_LENGTH);
 					// }
 				}
 				// memset(sub->local_UDPFrameIndex->pUDPFrame[id])
@@ -807,8 +808,7 @@ void align_thread(Thread_arg *sub)
 	//}
 }
 
-static
-void send_to_pulsar(void *arg)
+static void send_to_pulsar(void *arg)
 {
 	// sleep(1);
 
@@ -1033,8 +1033,7 @@ void send_to_pulsar(void *arg)
 	free(tmp);
 }
 
-static
-void timer_thread(std::vector<Thread_arg *> *args_vec)
+static void timer_thread(std::vector<Thread_arg *> *args_vec)
 {
 
 #ifdef GRAFANA
@@ -1109,7 +1108,7 @@ void timer_thread(std::vector<Thread_arg *> *args_vec)
 #ifdef DEBUG_DISPLAY
 
 			// spdlog::info("C{11}:Sec:{0:.1f}, align num: {1} ,Sent Frames: {2}, Forward Packets: {3}, queue1:{4}, queue2:{5}, queue3:{6}, global_count:{7}, mis:{8}, mis_msg:{9}, Speed:{10:.2f}", sec, (*args_vec)[i]->align_num, (*args_vec)[i]->sent_frame, (*args_vec)[i]->forward_packet, (*args_vec)[i]->mem_queue.size_approx(), (*args_vec)[i]->frame_queue.size_approx(), (*args_vec)[i]->queue_to_send.size_approx(), (*args_vec)[i]->global_count, (*args_vec)[i]->mis, (*args_vec)[i]->mis_msg, diff_count * 0.00001123046875 / TIME_STAMP, i);
-			spdlog::info("C{11}:Sec:{0:.1f}, align num: {1} ,Sent Frames: {2}, Forward Packets: {3}, queue1:{4}, queue2:{5}, queue3:{6}, global_count:{7}, mis:{8}, mis_msg:{9},drop:{12}, Speed:{10:.2f}", sec, (*args_vec)[i]->align_num, (*args_vec)[i]->sent_frame, (*args_vec)[i]->forward_packet, rte_ring_count((*args_vec)[i]->ring1_2), rte_ring_count((*args_vec)[i]->ring2_3), rte_ring_count((*args_vec)[i]->ring3_4), (*args_vec)[i]->global_count, (*args_vec)[i]->mis, (*args_vec)[i]->mis_msg, diff_count * 0.00001123046875 / TIME_STAMP, i,(*args_vec)[i]->drop_count);
+			spdlog::info("C{11}:Sec:{0:.1f}, align num: {1} ,Sent Frames: {2}, Forward Packets: {3}, queue1:{4}, queue2:{5}, queue3:{6}, global_count:{7}, mis:{8}, mis_msg:{9},drop:{12}, Speed:{10:.2f}", sec, (*args_vec)[i]->align_num, (*args_vec)[i]->sent_frame, (*args_vec)[i]->forward_packet, rte_ring_count((*args_vec)[i]->ring1_2), rte_ring_count((*args_vec)[i]->ring2_3), rte_ring_count((*args_vec)[i]->ring3_4), (*args_vec)[i]->global_count, (*args_vec)[i]->mis, (*args_vec)[i]->mis_msg, diff_count * 0.00001123046875 / TIME_STAMP, i, (*args_vec)[i]->drop_count);
 			// spdlog::info("C{8}:Sec:{0:.1f}, align num: {1} ,Sent Frames: {2}, Forward Packets: {3},global_count:{4}, mis:{5}, mis_msg:{6}, Speed:{7:.2f}", sec, (*args_vec)[i]->align_num, (*args_vec)[i]->sent_frame, (*args_vec)[i]->forward_packet, (*args_vec)[i]->global_count, (*args_vec)[i]->mis, (*args_vec)[i]->mis_msg, diff_count * 0.00001123046875 / TIME_STAMP, i);
 			// fmt::print("C{8}:Sec:{0:.1f}, align num: {1} ,Sent Frames: {2}, Forward Packets: {3},global_count:{4}, mis:{5}, mis_msg:{6}, Speed:{7:.2f}\n", sec, (*args_vec)[i]->align_num, (*args_vec)[i]->sent_frame, (*args_vec)[i]->forward_packet, (*args_vec)[i]->global_count, (*args_vec)[i]->mis, (*args_vec)[i]->mis_msg, diff_count * 0.00001123046875 / TIME_STAMP, i);
 
@@ -1172,7 +1171,7 @@ int main(int argc, char *argv[])
 		// args_vec[i]->channel_id = lcore_id;
 		i++;
 	}
-	const int NUM_CHANNELS = i;
+	const int NUM_CHANNELS = i*3;
 
 	// Thread_arg args;
 	std::vector<Thread_arg *> args_vec;
@@ -1187,14 +1186,15 @@ int main(int argc, char *argv[])
 		args_vec[i]->pulsar_topic_name = "persistent://public/default/test-topi" + std::to_string(i);
 		// args_vec[i]->channel_id = (10 + i) * 2;
 		args_vec[i]->proc_id = i;
+		args_vec[i]->channel_id = i;
 	}
-	i = 0;
-	RTE_LCORE_FOREACH_WORKER(lcore_id)
-	{
-		// std::cout << lcore_id <<" ," <<std::endl;
-		args_vec[i]->channel_id = lcore_id;
-		i++;
-	}
+	// i = 0;
+	// RTE_LCORE_FOREACH_WORKER(lcore_id)
+	// {
+	// 	// std::cout << lcore_id << " ," << std::endl;
+	// 	args_vec[i]->channel_id = lcore_id + i;
+	// 	i++;
+	// }
 
 	// for(int i = 0;i<NUM_CHANNELS;i++)
 	// {
@@ -1332,7 +1332,7 @@ int main(int argc, char *argv[])
 	{
 		assemble_threads.emplace_back(consumer_thread, args_vec[i]);
 		CPU_ZERO(&mask);
-		CPU_SET(args_vec[i]->channel_id + 40, &mask);
+		CPU_SET(args_vec[i]->channel_id + 60, &mask);
 		pthread_setaffinity_np(assemble_threads[i].native_handle(), sizeof(cpu_set_t), &mask);
 	}
 	spdlog::warn("INIT DOB");
@@ -1360,7 +1360,7 @@ int main(int argc, char *argv[])
 		// cpu_set_t mask;
 		CPU_ZERO(&mask);
 		// CPU_SET(args_vec[i]->channel_id + 1 + 40, &mask);
-		CPU_SET(args_vec[i]->channel_id + 40+1, &mask);
+		CPU_SET(args_vec[i]->channel_id + 40 + 1, &mask);
 		pthread_setaffinity_np(send_threads[i].native_handle(), sizeof(cpu_set_t), &mask);
 	}
 #endif
@@ -1421,7 +1421,7 @@ int main(int argc, char *argv[])
 	i = 0;
 	RTE_LCORE_FOREACH_WORKER(lcore_id)
 	{
-		rte_eal_remote_launch(lcore_main, args_vec[i], lcore_id);
+		rte_eal_remote_launch(lcore_main, &args_vec, lcore_id);
 
 		i++;
 	}
